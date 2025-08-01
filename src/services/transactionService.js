@@ -45,7 +45,9 @@ class TransactionService {
     const log = requestLogger || logger;
     const transaction = this.transactions.get(orderId);
     if (!transaction) {
-      throw new Error('Transaction not found');
+      const error = new Error('Transaction not found');
+      error.name = 'NotFoundError';
+      throw error;
     }
 
     transaction.status = status;

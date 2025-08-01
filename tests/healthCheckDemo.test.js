@@ -97,9 +97,12 @@ describe('Health Check System Demo', () => {
     expect(gateway.is_healthy).toBe(false);
     expect(gateway.disabled_until).toBeDefined();
     
-    // Mock time to advance 31 minutes
-    const originalDate = Date.now;
-    Date.now = jest.fn(() => new Date('2023-01-01T00:31:00Z').getTime());
+    // Mock time to advance 31 minutes after the disabled_until time
+    const originalDate = Date;
+    const disabledUntil = gateway.disabled_until;
+    const mockTime = new Date(disabledUntil.getTime() + 31 * 60 * 1000); // 31 minutes after disabled_until
+    Date = jest.fn(() => mockTime);
+    Date.now = jest.fn(() => mockTime.getTime());
     
     // Trigger health check
     gatewayService.checkGatewayHealth(gatewayName);
@@ -108,8 +111,8 @@ describe('Health Check System Demo', () => {
     expect(gateway.is_healthy).toBe(true);
     expect(gateway.disabled_until).toBeNull();
     
-    // Restore original Date.now
-    Date.now = originalDate;
+    // Restore original Date
+    Date = originalDate;
   });
 
   test('should demonstrate real-time health monitoring', () => {

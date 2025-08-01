@@ -216,6 +216,7 @@ const validateBusinessRules = {
 
         return res.status(404).json({
           error: 'Transaction not found',
+          timestamp: new Date().toISOString(),
           request_id: req.requestId
         });
       }

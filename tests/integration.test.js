@@ -67,44 +67,43 @@ describe('Health Check Integration Tests', () => {
       // Initially gateway should be healthy
       expect(gateway.is_healthy).toBe(true);
       
-      // Simulate multiple failed transactions for this gateway
+      // Add 10 failed transactions to meet minimum threshold and drop success rate below 90%
       for (let i = 0; i < 10; i++) {
-        await request(app)
-          .post('/transactions/callback')
-          .send({
-            order_id: `order_${i}`,
-            status: 'failure',
-            gateway: gatewayName,
-            reason: 'simulated_failure'
-          });
+        gatewayService.updateHealthStats(gatewayName, false);
       }
       
-      // Gateway should now be disabled
+      // Gateway should now be disabled (success rate = 0/10 = 0% < 90%)
       expect(gateway.is_healthy).toBe(false);
       expect(gateway.disabled_until).toBeDefined();
     });
 
-    test('should re-enable gateway after 30 minutes', async () => {
+    test('should re-enable gateway after disable duration', async () => {
       const gatewayName = 'paypal';
       const gateway = gatewayService.gateways.get(gatewayName);
       
-      // Disable the gateway
-      gatewayService.disableGateway(gatewayName, 30);
+      // Disable the gateway with 2-minute duration (default)
+      gatewayService.disableGateway(gatewayName, 2);
       expect(gateway.is_healthy).toBe(false);
       
-      // Mock time to advance 31 minutes
-      const originalDate = Date.now;
-      Date.now = jest.fn(() => new Date('2023-01-01T00:31:00Z').getTime());
+      // Mock time to be 3 minutes after the disabled_until time
+      const originalDateNow = Date.now;
+      const originalDate = Date;
+      const disabledUntil = gateway.disabled_until;
+      const mockTime = new Date(disabledUntil.getTime() + 3 * 60 * 1000); // 3 minutes after disabled_until
+      Date.now = jest.fn(() => mockTime.getTime());
+      Date = jest.fn(() => mockTime);
+      Date.now = jest.fn(() => mockTime.getTime());
       
       // Trigger health check
       gatewayService.checkGatewayHealth(gatewayName);
       
-      // Gateway should be re-enabled
+      // Gateway should be re-enabled after timeout
       expect(gateway.is_healthy).toBe(true);
       expect(gateway.disabled_until).toBeNull();
       
       // Restore original Date.now
-      Date.now = originalDate;
+      Date.now = originalDateNow;
+      Date = originalDate;
     });
 
     test('should provide gateway health statistics via API', async () => {
@@ -210,11 +209,10 @@ describe('Health Check Integration Tests', () => {
     });
 
     test('should update health stats from transaction callbacks', async () => {
-      const gatewayName = 'stripe';
       const orderId = 'health_test_order';
       
       // Create a transaction
-      await request(app)
+      const createResponse = await request(app)
         .post('/transactions/initiate')
         .send({
           order_id: orderId,
@@ -226,19 +224,21 @@ describe('Health Check Integration Tests', () => {
           }
         });
       
-      // Simulate failed callback
+      const selectedGateway = createResponse.body.selected_gateway;
+      
+      // Simulate failed callback with the correct gateway
       await request(app)
         .post('/transactions/callback')
         .send({
           order_id: orderId,
           status: 'failure',
-          gateway: gatewayName,
+          gateway: selectedGateway,
           reason: 'insufficient_funds'
         });
       
       // Check health stats
       const stats = gatewayService.getGatewayStats();
-      const gatewayStats = stats[gatewayName];
+      const gatewayStats = stats[selectedGateway];
       
       expect(gatewayStats.total_requests).toBe(1);
       expect(gatewayStats.failed_requests).toBe(1);

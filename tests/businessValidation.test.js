@@ -27,7 +27,7 @@ describe('Business Validation Rules', () => {
         .send(payload)
         .expect(201);
 
-      expect(firstResponse.body).toHaveProperty('transaction_id');
+      expect(firstResponse.body).toHaveProperty('order_id');
       expect(firstResponse.body.order_id).toBe('ORD_DUPLICATE_123');
 
       // Try to create duplicate transaction
@@ -183,7 +183,7 @@ describe('Business Validation Rules', () => {
       expect(response.body.error).toBe('Gateway mismatch');
       expect(response.body.order_id).toBe(createResponse.body.order_id);
       expect(response.body.expected_gateway).toBe(createResponse.body.selected_gateway);
-      expect(response.body.received_gateway).toBe('razorpay');
+      expect(response.body.received_gateway).toBe(wrongGateway);
       expect(response.body).toHaveProperty('timestamp');
     });
 

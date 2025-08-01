@@ -11,9 +11,9 @@ class GatewayService {
 
   initializeGateways() {
     const gatewayConfigs = [
-      { name: 'razorpay', weight: 40, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 2 },
-      { name: 'stripe', weight: 35, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 2 },
-      { name: 'paypal', weight: 25, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 2 }
+      { name: 'razorpay', weight: 40, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
+      { name: 'stripe', weight: 35, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
+      { name: 'paypal', weight: 25, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 }
     ];
 
     gatewayConfigs.forEach(config => {
@@ -181,7 +181,7 @@ class GatewayService {
     const windowSuccessRate = this.getWindowSuccessRate(gatewayName);
     const windowRequestCount = stats.request_history.length;
     const wasHealthy = gateway.is_healthy;
-    const isCurrentlyDisabled = gateway.disabled_until && new Date() > gateway.disabled_until;
+    const isCurrentlyDisabled = gateway.disabled_until && new Date() >= gateway.disabled_until;
 
     // Check if gateway should be disabled due to low success rate
     // Disable when success rate drops below threshold in 30-min window, but only after minimum requests
@@ -277,7 +277,7 @@ class GatewayService {
     const stats = {};
     this.gateways.forEach((gateway, name) => {
       const healthStats = this.healthStats.get(name);
-      const isCurrentlyDisabled = gateway.disabled_until && new Date() > gateway.disabled_until;
+      const isCurrentlyDisabled = gateway.disabled_until && new Date() >= gateway.disabled_until;
       
       stats[name] = {
         name: gateway.name,

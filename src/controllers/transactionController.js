@@ -80,32 +80,44 @@ class TransactionController {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const { order_id, status, gateway, reason } = req.body;
 
-    const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
-      order_id,
-      status,
-      gateway,
-      reason,
-      requestLogger
-    );
+    try {
+      const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
+        order_id,
+        status,
+        gateway,
+        reason,
+        requestLogger
+      );
 
-    const success = status === 'success';
-    gatewayService.updateHealthStats(gateway, success, requestLogger);
+      const success = status === 'success';
+      gatewayService.updateHealthStats(gateway, success, requestLogger);
 
-    requestLogger.info('Transaction status updated', {
-      order_id: updatedTransaction.order_id,
-      status: updatedTransaction.status,
-      gateway: updatedTransaction.callback_data.gateway,
-      reason: updatedTransaction.callback_data.reason
-    });
+      requestLogger.info('Transaction status updated', {
+        order_id: updatedTransaction.order_id,
+        status: updatedTransaction.status,
+        gateway: updatedTransaction.callback_data.gateway,
+        reason: updatedTransaction.callback_data.reason
+      });
 
-    res.status(200).json({
-      message: 'Transaction status updated successfully',
-      order_id: updatedTransaction.order_id,
-      status: updatedTransaction.status,
-      gateway: gateway,
-      updated_at: updatedTransaction.updated_at,
-      request_id: req.requestId
-    });
+      res.status(200).json({
+        message: 'Transaction status updated successfully',
+        order_id: updatedTransaction.order_id,
+        status: updatedTransaction.status,
+        gateway: gateway,
+        updated_at: updatedTransaction.updated_at,
+        request_id: req.requestId
+      });
+    } catch (error) {
+      if (error.name === 'NotFoundError') {
+        requestLogger.warn('Transaction not found for callback', { order_id: order_id });
+        return res.status(404).json({
+          error: 'Transaction not found',
+          timestamp: new Date().toISOString(),
+          request_id: req.requestId
+        });
+      }
+      throw error;
+    }
   }
 
   async getTransactions(req, res, next) {
@@ -132,6 +144,7 @@ class TransactionController {
       requestLogger.warn('Transaction not found', { order_id: orderId });
       return res.status(404).json({
         error: 'Transaction not found',
+        timestamp: new Date().toISOString(),
         request_id: req.requestId
       });
     }
@@ -152,6 +165,7 @@ class TransactionController {
       requestLogger.warn('Transaction not found by order ID', { order_id: orderId });
       return res.status(404).json({
         error: 'Transaction not found',
+        timestamp: new Date().toISOString(),
         request_id: req.requestId
       });
     }

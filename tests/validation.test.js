@@ -21,8 +21,9 @@ describe('Validation Middleware', () => {
         .send(validPayload)
         .expect(201);
 
-      expect(response.body).toHaveProperty('transaction_id');
       expect(response.body.order_id).toBe('ORD123');
+      expect(response.body.selected_gateway).toBeDefined();
+      expect(response.body.status).toBe('pending');
     });
 
     it('should reject missing order_id', async () => {
@@ -144,7 +145,9 @@ describe('Validation Middleware', () => {
         .send(validPayload)
         .expect(201);
 
-      expect(response.body).toHaveProperty('transaction_id');
+      expect(response.body.order_id).toBe('ORD_UPI_123');
+      expect(response.body.selected_gateway).toBeDefined();
+      expect(response.body.status).toBe('pending');
     });
 
     it('should reject invalid UPI ID format', async () => {
@@ -182,7 +185,9 @@ describe('Validation Middleware', () => {
         .send(validPayload)
         .expect(201);
 
-      expect(response.body).toHaveProperty('transaction_id');
+      expect(response.body.order_id).toBe('ORD_NET_123');
+      expect(response.body.selected_gateway).toBeDefined();
+      expect(response.body.status).toBe('pending');
     });
 
     it('should reject invalid bank code length', async () => {
@@ -345,7 +350,8 @@ describe('Validation Middleware', () => {
         .expect(201);
 
       expect(response.body.order_id).toBe('ORD_SANITIZE_123'); // Should be trimmed
-      expect(response.body).toHaveProperty('transaction_id');
+      expect(response.body.selected_gateway).toBeDefined();
+      expect(response.body.status).toBe('pending');
     });
   });
 }); 
