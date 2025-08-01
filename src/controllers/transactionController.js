@@ -23,6 +23,9 @@ class TransactionController {
         requestLogger
       );
 
+      // Update health stats to increment total requests when transaction is initiated
+      gatewayService.updateHealthStats(selectedGateway, null, requestLogger);
+
       gatewayService.simulatePayment(selectedGateway, order_id, requestLogger)
         .then(result => {
           requestLogger.info('Payment simulation result', {

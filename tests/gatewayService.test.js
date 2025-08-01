@@ -134,7 +134,7 @@ describe('GatewayService Health Checks', () => {
 
   describe('Manual Gateway Operations', () => {
     test('should manually disable gateway', () => {
-      const gatewayName = 'stripe';
+      const gatewayName = 'payu';
       const durationMinutes = 45;
       
       const success = gatewayService.disableGateway(gatewayName, durationMinutes);
@@ -148,7 +148,7 @@ describe('GatewayService Health Checks', () => {
     });
 
     test('should manually enable gateway', () => {
-      const gatewayName = 'paypal';
+      const gatewayName = 'cashfree';
       
       // First disable the gateway
       gatewayService.disableGateway(gatewayName, 30);
@@ -204,7 +204,7 @@ describe('GatewayService Health Checks', () => {
     });
 
     test('should show correct success rates', () => {
-      const gatewayName = 'stripe';
+      const gatewayName = 'payu';
       
       // Add some successful and failed requests
       for (let i = 0; i < 8; i++) {
@@ -245,8 +245,8 @@ describe('GatewayService Health Checks', () => {
       gatewayService.performHealthChecks();
       
       expect(mockCheckHealth).toHaveBeenCalledWith('razorpay');
-      expect(mockCheckHealth).toHaveBeenCalledWith('stripe');
-      expect(mockCheckHealth).toHaveBeenCalledWith('paypal');
+      expect(mockCheckHealth).toHaveBeenCalledWith('payu');
+      expect(mockCheckHealth).toHaveBeenCalledWith('cashfree');
     });
   });
 
@@ -254,8 +254,8 @@ describe('GatewayService Health Checks', () => {
     test('should throw error when all gateways are unhealthy', () => {
       // Manually disable all gateways
       gatewayService.disableGateway('razorpay', 30);
-      gatewayService.disableGateway('stripe', 30);
-      gatewayService.disableGateway('paypal', 30);
+      gatewayService.disableGateway('payu', 30);
+      gatewayService.disableGateway('cashfree', 30);
 
       // Verify all gateways are unhealthy
       expect(gatewayService.areAllGatewaysUnhealthy()).toBe(true);
@@ -267,38 +267,38 @@ describe('GatewayService Health Checks', () => {
 
       // Re-enable gateways for other tests
       gatewayService.enableGateway('razorpay');
-      gatewayService.enableGateway('stripe');
-      gatewayService.enableGateway('paypal');
+      gatewayService.enableGateway('payu');
+      gatewayService.enableGateway('cashfree');
     });
 
     test('should return false when at least one gateway is healthy', () => {
       // Ensure at least one gateway is healthy
       gatewayService.enableGateway('razorpay');
-      gatewayService.enableGateway('stripe');
-      gatewayService.enableGateway('paypal');
+      gatewayService.enableGateway('payu');
+      gatewayService.enableGateway('cashfree');
 
       expect(gatewayService.areAllGatewaysUnhealthy()).toBe(false);
 
       // Should be able to select a gateway
       const selectedGateway = gatewayService.selectGateway();
-      expect(['razorpay', 'stripe', 'paypal']).toContain(selectedGateway);
+      expect(['razorpay', 'payu', 'cashfree']).toContain(selectedGateway);
     });
 
     test('should handle mixed healthy/unhealthy gateways correctly', () => {
       // Disable two gateways, keep one healthy
       gatewayService.disableGateway('razorpay', 30);
-      gatewayService.disableGateway('stripe', 30);
-      // paypal remains healthy
+      gatewayService.disableGateway('payu', 30);
+      // cashfree remains healthy
 
       expect(gatewayService.areAllGatewaysUnhealthy()).toBe(false);
 
-      // Should be able to select a gateway (should be paypal)
+      // Should be able to select a gateway (should be cashfree)
       const selectedGateway = gatewayService.selectGateway();
-      expect(selectedGateway).toBe('paypal');
+      expect(selectedGateway).toBe('cashfree');
 
       // Re-enable all gateways
       gatewayService.enableGateway('razorpay');
-      gatewayService.enableGateway('stripe');
+      gatewayService.enableGateway('payu');
     });
   });
 }); 

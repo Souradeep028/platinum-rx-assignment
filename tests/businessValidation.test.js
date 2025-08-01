@@ -165,7 +165,7 @@ describe('Business Validation Rules', () => {
         .expect(201);
 
       const selectedGateway = createResponse.body.selected_gateway;
-      const wrongGateway = selectedGateway === 'razorpay' ? 'stripe' : 'razorpay';
+      const wrongGateway = selectedGateway === 'razorpay' ? 'payu' : 'razorpay';
 
       // Callback with wrong gateway
       const callbackPayload = {
@@ -254,7 +254,7 @@ describe('Business Validation Rules', () => {
         .expect(200);
 
       // Second callback with wrong gateway - should fail with gateway mismatch
-      const wrongGateway = createResponse.body.selected_gateway === 'razorpay' ? 'stripe' : 'razorpay';
+      const wrongGateway = createResponse.body.selected_gateway === 'razorpay' ? 'payu' : 'razorpay';
       const secondCallbackPayload = {
         order_id: 'ORD_MULTIPLE_VALIDATIONS',
         status: 'failure',

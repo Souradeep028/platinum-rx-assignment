@@ -90,7 +90,6 @@ class TransactionService {
       by_gateway: {},
       recent_transactions: transactions
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 10)
     };
 
     transactions.forEach(transaction => {
@@ -108,7 +107,15 @@ class TransactionService {
         };
       }
       stats.by_gateway[gateway].total++;
-      stats.by_gateway[gateway][transaction.status]++;
+      
+      // Track callbacks separately - only count transactions that actually received callbacks
+      if (transaction.callback_received && transaction.callback_data) {
+        if (transaction.status === 'success') {
+          stats.by_gateway[gateway].successful++;
+        } else if (transaction.status === 'failure') {
+          stats.by_gateway[gateway].failed++;
+        }
+      }
     });
 
     return stats;

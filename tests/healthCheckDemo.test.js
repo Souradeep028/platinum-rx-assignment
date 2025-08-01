@@ -89,7 +89,7 @@ describe('Health Check System Demo', () => {
   });
 
   test('should demonstrate 30-minute timeout functionality', () => {
-    const gatewayName = 'stripe';
+    const gatewayName = 'payu';
     const gateway = gatewayService.gateways.get(gatewayName);
     
     // Disable the gateway

@@ -61,7 +61,7 @@ describe('Health Check Integration Tests', () => {
     });
 
     test('should automatically disable gateway after multiple failures', async () => {
-      const gatewayName = 'stripe';
+      const gatewayName = 'payu';
       const gateway = gatewayService.gateways.get(gatewayName);
       
       // Initially gateway should be healthy
@@ -78,7 +78,7 @@ describe('Health Check Integration Tests', () => {
     });
 
     test('should re-enable gateway after disable duration', async () => {
-      const gatewayName = 'paypal';
+      const gatewayName = 'cashfree';
       const gateway = gatewayService.gateways.get(gatewayName);
       
       // Disable the gateway with 2-minute duration (default)
@@ -112,7 +112,7 @@ describe('Health Check Integration Tests', () => {
       
       // Add some transaction data
       for (let i = 0; i < 5; i++) {
-        gatewayService.updateHealthStats('stripe', true);
+        gatewayService.updateHealthStats('payu', true);
       }
       
       const response = await request(app)
@@ -122,11 +122,11 @@ describe('Health Check Integration Tests', () => {
       expect(response.body.gateway_stats).toBeDefined();
       expect(response.body.gateway_stats.razorpay).toBeDefined();
       expect(response.body.gateway_stats.razorpay.is_disabled).toBe(true);
-      expect(response.body.gateway_stats.stripe.success_rate).toBe(1.0);
+      expect(response.body.gateway_stats.payu.success_rate).toBe(1.0);
     });
 
     test('should allow manual gateway operations via API', async () => {
-      const gatewayName = 'stripe';
+      const gatewayName = 'payu';
       
       // Manually disable gateway
       const disableResponse = await request(app)
@@ -175,7 +175,7 @@ describe('Health Check Integration Tests', () => {
     test('should handle transaction flow with disabled gateways', async () => {
       // Disable all gateways except one
       gatewayService.disableGateway('razorpay', 30);
-      gatewayService.disableGateway('stripe', 30);
+      gatewayService.disableGateway('payu', 30);
       
       // Make a transaction request
       const response = await request(app)
@@ -191,8 +191,8 @@ describe('Health Check Integration Tests', () => {
         })
         .expect(201);
       
-      // Should select the only available gateway (paypal)
-      expect(response.body.selected_gateway).toBe('paypal');
+      // Should select the only available gateway (cashfree)
+      expect(response.body.selected_gateway).toBe('cashfree');
       
       // Simulate callback for the transaction
       const callbackResponse = await request(app)
@@ -200,7 +200,7 @@ describe('Health Check Integration Tests', () => {
         .send({
           order_id: 'test_order_123',
           status: 'success',
-          gateway: 'paypal',
+          gateway: 'cashfree',
           reason: 'payment_processed'
         })
         .expect(200);

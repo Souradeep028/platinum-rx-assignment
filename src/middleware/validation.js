@@ -104,8 +104,8 @@ const validateCallback = [
     .withMessage('gateway is required')
     .isString()
     .withMessage('gateway must be a string')
-    .isIn(['razorpay', 'stripe', 'paypal'])
-    .withMessage('gateway must be one of: razorpay, stripe, paypal'),
+    .isIn(['razorpay', 'payu', 'cashfree'])
+    .withMessage('gateway must be one of: razorpay, payu, cashfree'),
   
   check('reason')
     .optional()

@@ -75,7 +75,7 @@ The test suite covers:
 
 ## Features
 
-- **Dynamic Gateway Routing**: Intelligent routing across multiple payment gateways (Razorpay, Stripe, PayPal)
+- **Dynamic Gateway Routing**: Intelligent routing across multiple payment gateways (Razorpay, payu, cashfree)
 - **Health Monitoring**: Real-time gateway health tracking and automatic failover
 - **Comprehensive Validation**: Input validation and business rule enforcement
 - **Graceful Shutdown**: Proper signal handling for clean server termination
@@ -92,8 +92,8 @@ The service implements an intelligent gateway selection algorithm with the follo
 
 ### Weighted Distribution
 - **Razorpay**: 40% weight
-- **Stripe**: 35% weight  
-- **PayPal**: 25% weight
+- **payu**: 35% weight  
+- **cashfree**: 25% weight
 
 ### Health Monitoring
 - Tracks success/failure rates for each gateway
@@ -114,8 +114,8 @@ Gateway weights and health thresholds can be modified in `src/services/gatewaySe
 ```javascript
 const gatewayConfigs = [
   { name: 'razorpay', weight: 40, success_threshold: 0.9 },
-  { name: 'stripe', weight: 35, success_threshold: 0.9 },
-  { name: 'paypal', weight: 25, success_threshold: 0.9 }
+  { name: 'payu', weight: 35, success_threshold: 0.9 },
+  { name: 'cashfree', weight: 25, success_threshold: 0.9 }
 ];
 ```
 
@@ -264,14 +264,14 @@ Returns detailed gateway health and transaction statistics.
       "total_requests": 100,
       "disabled_until": null
     },
-    "stripe": {
+    "payu": {
       "weight": 35,
       "is_healthy": true,
       "success_rate": 0.92,
       "total_requests": 85,
       "disabled_until": null
     },
-    "paypal": {
+    "cashfree": {
       "weight": 25,
       "is_healthy": true,
       "success_rate": 0.88,
@@ -394,7 +394,7 @@ The service implements comprehensive error handling:
   "error": "Gateway mismatch",
   "order_id": "ORD123",
   "expected_gateway": "razorpay",
-  "received_gateway": "stripe",
+  "received_gateway": "payu",
   "timestamp": "2024-01-15T10:30:00.000Z"
 }
 ```

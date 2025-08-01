@@ -101,7 +101,7 @@ describe('TransactionService', () => {
     it('should return correct statistics', () => {
       // Create some test transactions
       transactionService.createTransaction('ORD1', 100, { type: 'card' }, 'razorpay');
-      transactionService.createTransaction('ORD2', 200, { type: 'card' }, 'stripe');
+      transactionService.createTransaction('ORD2', 200, { type: 'card' }, 'payu');
       transactionService.createTransaction('ORD3', 300, { type: 'card' }, 'razorpay');
 
       const stats = transactionService.getTransactionStats();
@@ -109,7 +109,7 @@ describe('TransactionService', () => {
       expect(stats.total_transactions).toBe(3);
       expect(stats.by_status.pending).toBe(3);
       expect(stats.by_gateway.razorpay.total).toBe(2);
-      expect(stats.by_gateway.stripe.total).toBe(1);
+      expect(stats.by_gateway.payu.total).toBe(1);
     });
   });
 }); 

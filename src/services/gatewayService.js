@@ -12,8 +12,8 @@ class GatewayService {
   initializeGateways() {
     const gatewayConfigs = [
       { name: 'razorpay', weight: 40, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
-      { name: 'stripe', weight: 35, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
-      { name: 'paypal', weight: 25, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 }
+      { name: 'payu', weight: 35, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
+      { name: 'cashfree', weight: 25, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 }
     ];
 
     gatewayConfigs.forEach(config => {
@@ -123,6 +123,19 @@ class GatewayService {
 
     const timestamp = new Date();
     
+    // If success is null, this is a request initiation (not a callback)
+    if (success === null) {
+      // Only increment total requests, don't add to history or update success/failure counts
+      stats.total_requests++;
+      stats.last_updated = timestamp;
+      
+      log.info('Request initiated with gateway', { 
+        gateway: gatewayName, 
+        total_requests: stats.total_requests
+      });
+      return;
+    }
+    
     // Add to request history for sliding window
     stats.request_history.push({
       timestamp: timestamp,
@@ -135,8 +148,7 @@ class GatewayService {
       request => request.timestamp > thirtyMinutesAgo
     );
     
-    // Update legacy stats for backward compatibility
-    stats.total_requests++;
+    // Update success/failure counts for health monitoring (but NOT total_requests)
     if (success) {
       stats.successful_requests++;
     } else {
@@ -147,19 +159,21 @@ class GatewayService {
     // Immediately check health after updating stats
     this.checkGatewayHealth(gatewayName, requestLogger);
     
-    log.info('Health stats updated', { 
+    log.info('Callback received - health stats updated', { 
       gateway: gatewayName, 
       success, 
       window_success_rate: this.getWindowSuccessRate(gatewayName),
       total_requests: stats.total_requests,
-      window_requests: stats.request_history.length
+      window_requests: stats.request_history.length,
+      successful_requests: stats.successful_requests,
+      failed_requests: stats.failed_requests
     });
   }
 
   getSuccessRate(gatewayName) {
     const stats = this.healthStats.get(gatewayName);
-    if (!stats || stats.total_requests === 0) return 1.0;
-    return stats.successful_requests / stats.total_requests;
+    if (!stats || (stats.successful_requests + stats.failed_requests) === 0) return 1.0;
+    return stats.successful_requests / (stats.successful_requests + stats.failed_requests);
   }
 
   getWindowSuccessRate(gatewayName) {
@@ -279,6 +293,11 @@ class GatewayService {
       const healthStats = this.healthStats.get(name);
       const isCurrentlyDisabled = gateway.disabled_until && new Date() >= gateway.disabled_until;
       
+      // Get callback statistics from transaction service
+      const transactionService = require('./transactionService');
+      const transactionStats = transactionService.getTransactionStats();
+      const gatewayCallbacks = transactionStats.by_gateway[name] || { successful: 0, failed: 0 };
+      
       stats[name] = {
         name: gateway.name,
         weight: gateway.weight,
@@ -292,6 +311,8 @@ class GatewayService {
         total_requests: healthStats ? healthStats.total_requests : 0,
         successful_requests: healthStats ? healthStats.successful_requests : 0,
         failed_requests: healthStats ? healthStats.failed_requests : 0,
+        recent_success_callbacks: gatewayCallbacks.successful || 0,
+        recent_failure_callbacks: gatewayCallbacks.failed || 0,
         last_updated: healthStats ? healthStats.last_updated : null,
         threshold: gateway.success_threshold,
         min_requests: gateway.min_requests,

@@ -61,10 +61,29 @@
     background: #a8a8a8;
 }
 
-/* Ensure sticky header works properly */
-.table thead th {
+/* Fixed table headers */
+.table-responsive {
+    position: relative;
+}
+
+.table-responsive .table {
+    margin-bottom: 0;
+}
+
+.table-responsive .table thead {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.table-responsive .table thead th {
     background-color: #212529 !important;
     border-bottom: 2px solid #dee2e6;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
 }
 
 /* Add some spacing for better readability */
@@ -73,10 +92,6 @@
 }
 
 /* Ensure proper spacing in scrollable tables */
-.table-responsive .table {
-    margin-bottom: 0;
-}
-
 .table-responsive .table tbody tr:last-child td {
     border-bottom: none;
 }
@@ -90,6 +105,100 @@
 .table-responsive .btn-sm {
     padding: 0.25rem 0.5rem;
     font-size: 0.875rem;
+}
+
+/* Additional styles for better sticky header appearance */
+.table-responsive .table thead th:first-child {
+    border-top-left-radius: 0.375rem;
+}
+
+.table-responsive .table thead th:last-child {
+    border-top-right-radius: 0.375rem;
+}
+
+/* Ensure the sticky header has proper borders */
+.table-responsive .table thead th {
+    border-top: none;
+    border-left: 1px solid #dee2e6;
+    border-right: 1px solid #dee2e6;
+}
+
+.table-responsive .table thead th:first-child {
+    border-left: none;
+}
+
+.table-responsive .table thead th:last-child {
+    border-right: none;
+}
+
+/* Additional fixes for sticky headers */
+.table-responsive {
+    overflow: auto;
+    max-height: 400px;
+    border-radius: 0.375rem;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.table-responsive .table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+/* Ensure cards are not scrollable */
+.card {
+    overflow: visible;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 0.375rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-body {
+    overflow: visible;
+    padding: 1rem;
+}
+
+/* Ensure table containers are clearly scrollable */
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background-color: #fff;
+    position: relative;
+}
+
+/* Add subtle scroll indicator */
+.table-responsive::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid #dee2e6;
+    border-bottom: 8px solid transparent;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Ensure sticky headers work in all browsers */
+.table-responsive .table thead th {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    background-color: #212529 !important;
+    color: white !important;
+    z-index: 100;
+}
+
+/* Fix for table body scrolling */
+.table-responsive .table tbody {
+    position: relative;
+}
+
+/* Ensure proper spacing when scrolling */
+.table-responsive .table tbody tr:first-child td {
+    border-top: none;
 }
 </style>
 
@@ -159,6 +268,192 @@ document.getElementById('transactionForm').addEventListener('submit', async func
     }
 });
 
+// Handle bulk transaction form submission
+document.getElementById('bulkTransactionForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    console.log('Bulk transaction form submitted');
+    
+    const formData = new FormData(this);
+    const count = parseInt(formData.get('bulk_count'));
+    const amount = parseFloat(formData.get('bulk_amount'));
+    const paymentInstrumentType = formData.get('bulk_payment_instrument');
+    
+    if (count < 1 || count > 100) {
+        alert('Please enter a valid number of transactions (1-100)');
+        return;
+    }
+    
+    // Show progress
+    const progressDiv = document.getElementById('bulkProgress');
+    const progressBar = document.getElementById('bulkProgressBar');
+    const progressText = document.getElementById('bulkProgressText');
+    const progressCount = document.getElementById('bulkProgressCount');
+    const submitBtn = document.getElementById('bulkSubmitBtn');
+    const resultsDiv = document.getElementById('bulkResults');
+    const resultsContent = document.getElementById('bulkResultsContent');
+    
+    progressDiv.style.display = 'block';
+    resultsDiv.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
+    
+    const results = {
+        successful: 0,
+        failed: 0,
+        total: count,
+        transactions: []
+    };
+    
+    // Process transactions in batches to avoid overwhelming the server
+    const batchSize = 5;
+    const batches = Math.ceil(count / batchSize);
+    
+    for (let batch = 0; batch < batches; batch++) {
+        const batchStart = batch * batchSize;
+        const batchEnd = Math.min(batchStart + batchSize, count);
+        const batchCount = batchEnd - batchStart;
+        
+        // Process batch
+        const batchPromises = [];
+        for (let i = 0; i < batchCount; i++) {
+            const transactionIndex = batchStart + i;
+            const orderId = generateRandomOrderId();
+            
+            // Build payload for this transaction
+            let payload = {
+                order_id: orderId,
+                amount: amount,
+                payment_instrument: {
+                    type: paymentInstrumentType
+                }
+            };
+            
+            // Add specific fields based on payment instrument type
+            if (paymentInstrumentType === 'card') {
+                payload.payment_instrument.card_number = '4111111111111111';
+                payload.payment_instrument.expiry = '12/25';
+                payload.payment_instrument.cvv = '123';
+                payload.payment_instrument.card_holder_name = 'Test User';
+            } else if (paymentInstrumentType === 'upi') {
+                payload.payment_instrument.upi_id = 'testuser@bank';
+            } else if (paymentInstrumentType === 'netbanking') {
+                payload.payment_instrument.bank_code = 'HDFC';
+            }
+            
+            // Add delay between requests to avoid rate limiting
+            const delay = i * 200; // 200ms delay between requests in batch
+            const promise = new Promise(resolve => {
+                setTimeout(async () => {
+                    try {
+                        const response = await axios.post('/transactions/initiate', payload);
+                        results.successful++;
+                        results.transactions.push({
+                            order_id: orderId,
+                            status: 'success',
+                            gateway: response.data.selected_gateway,
+                            response: response.data
+                        });
+                        addGatewayLog(`Bulk transaction ${transactionIndex + 1}/${count}: ${orderId} initiated with gateway: ${response.data.selected_gateway}`);
+                    } catch (error) {
+                        results.failed++;
+                        results.transactions.push({
+                            order_id: orderId,
+                            status: 'failed',
+                            error: error.response?.data?.error || error.message
+                        });
+                        addGatewayLog(`Bulk transaction ${transactionIndex + 1}/${count}: ${orderId} failed - ${error.response?.data?.error || error.message}`);
+                    }
+                    resolve();
+                }, delay);
+            });
+            
+            batchPromises.push(promise);
+        }
+        
+        // Wait for batch to complete
+        await Promise.all(batchPromises);
+        
+        // Update progress
+        const progress = ((batch + 1) * batchSize / count) * 100;
+        progressBar.style.width = `${Math.min(progress, 100)}%`;
+        progressText.textContent = `Processing batch ${batch + 1}/${batches}`;
+        progressCount.textContent = `${Math.min((batch + 1) * batchSize, count)} / ${count}`;
+    }
+    
+    // Hide progress and show results
+    progressDiv.style.display = 'none';
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fas fa-rocket me-2"></i>Generate Bulk Transactions';
+    
+    // Display results
+    resultsContent.innerHTML = `
+        <div class="row">
+            <div class="col-md-4">
+                <div class="text-center">
+                    <h4 class="text-success">${results.successful}</h4>
+                    <small class="text-muted">Successful</small>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-center">
+                    <h4 class="text-danger">${results.failed}</h4>
+                    <small class="text-muted">Failed</small>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-center">
+                    <h4 class="text-info">${results.total}</h4>
+                    <small class="text-muted">Total</small>
+                </div>
+            </div>
+        </div>
+        <hr>
+        <div class="mt-3">
+            <h6>Transaction Details:</h6>
+            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th style="position: sticky; top: 0; background-color: #f8f9fa; z-index: 10; border-bottom: 2px solid #dee2e6;">Order ID</th>
+                            <th style="position: sticky; top: 0; background-color: #f8f9fa; z-index: 10; border-bottom: 2px solid #dee2e6;">Status</th>
+                            <th style="position: sticky; top: 0; background-color: #f8f9fa; z-index: 10; border-bottom: 2px solid #dee2e6;">Gateway</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${results.transactions.map(t => `
+                            <tr>
+                                <td><code>${t.order_id}</code></td>
+                                <td>
+                                    <span class="badge ${t.status === 'success' ? 'bg-success' : 'bg-danger'}">
+                                        ${t.status}
+                                    </span>
+                                </td>
+                                <td>${t.gateway || '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    resultsDiv.style.display = 'block';
+    
+    // Refresh tables after bulk operation
+    setTimeout(() => {
+        refreshTables();
+    }, 1000);
+    
+    addGatewayLog(`Bulk transaction generation completed: ${results.successful} successful, ${results.failed} failed out of ${results.total} total`);
+});
+
+// Generate random order ID
+function generateRandomOrderId() {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    return `BULK_${timestamp}_${random}`;
+}
+
 // Display API response
 function displayResponse(data) {
     const responseArea = document.getElementById('responseArea');
@@ -173,9 +468,31 @@ function displayResponse(data) {
 // Add gateway selection log
 function addGatewayLog(message) {
     const timestamp = new Date().toLocaleTimeString();
+    
+    // Add terminal-style prefixes based on message content
+    let formattedMessage = message;
+    
+    // Check for specific patterns to avoid false positives
+    const isBulkCompletion = message.toLowerCase().includes('bulk transaction generation completed');
+    const hasFailedCount = message.toLowerCase().includes('failed') && message.toLowerCase().includes('0 failed');
+    const isActualError = message.toLowerCase().includes('error') || 
+                          (message.toLowerCase().includes('failed') && !hasFailedCount && !isBulkCompletion);
+    
+    if (isActualError) {
+        formattedMessage = `ERROR: ${message}`;
+    } else if (message.toLowerCase().includes('success') || message.toLowerCase().includes('healthy') || isBulkCompletion) {
+        formattedMessage = `SUCCESS: ${message}`;
+    } else if (message.toLowerCase().includes('callback')) {
+        formattedMessage = `CALLBACK: ${message}`;
+    } else if (message.toLowerCase().includes('health check')) {
+        formattedMessage = `HEALTH: ${message}`;
+    } else {
+        formattedMessage = `INFO: ${message}`;
+    }
+    
     const logEntry = {
         timestamp: timestamp,
-        message: message
+        message: formattedMessage
     };
     
     gatewayLogs.unshift(logEntry);
@@ -192,20 +509,39 @@ function updateGatewayLogs() {
     
     if (gatewayLogs.length === 0) {
         logsContainer.innerHTML = `
-            <div class="text-muted text-center py-3">
-                <i class="fas fa-info-circle me-2"></i>
+            <div style="color: #888; text-align: center; padding: 20px; font-family: 'JetBrains Mono', monospace;">
+                <i class="fas fa-terminal me-2"></i>
                 Gateway selection logs will appear here
             </div>
         `;
         return;
     }
     
-    logsContainer.innerHTML = gatewayLogs.map(log => `
-        <div class="log-entry">
-            <small class="text-muted">${log.timestamp}</small>
-            <div class="mt-1">${log.message}</div>
-        </div>
-    `).join('');
+    logsContainer.innerHTML = gatewayLogs.map((log, index) => {
+        const timestamp = log.timestamp;
+        const message = log.message;
+        
+        // More precise error detection
+        const isError = message.toLowerCase().includes('error') || 
+                       (message.toLowerCase().includes('failed') && 
+                        !message.toLowerCase().includes('0 failed') && 
+                        !message.toLowerCase().includes('bulk transaction generation completed'));
+        
+        const isSuccess = message.toLowerCase().includes('success') || 
+                         message.toLowerCase().includes('healthy') ||
+                         message.toLowerCase().includes('bulk transaction generation completed');
+        
+        let color = '#e0e0e0'; // default
+        if (isError) color = '#ef4444'; // red for errors
+        else if (isSuccess) color = '#10b981'; // green for success
+        
+        return `
+            <div class="log-entry">
+                <span style="color: #888; font-size: 0.75rem;">[${timestamp}]</span>
+                <span style="color: ${color}; margin-left: 8px;">${message}</span>
+            </div>
+        `;
+    }).join('');
 }
 
 // Trigger callback for pending transaction
@@ -295,9 +631,46 @@ async function refreshTables() {
         // Ensure scrollable behavior is maintained after updates
         initializeScrollableTables();
         
+        // Ensure sticky headers are properly applied
+        applyStickyHeaders();
+        
     } catch (error) {
         console.error('Failed to refresh tables:', error);
     }
+}
+
+// Helper function to apply sticky headers to all tables
+function applyStickyHeaders() {
+    const tableContainers = document.querySelectorAll('.table-responsive');
+    tableContainers.forEach(container => {
+        // Ensure only the table container is scrollable
+        container.style.maxHeight = '400px';
+        container.style.overflowY = 'auto';
+        container.style.overflowX = 'auto';
+        
+        // Ensure the parent card is not scrollable
+        const card = container.closest('.card');
+        if (card) {
+            card.style.overflow = 'visible';
+        }
+        
+        const thead = container.querySelector('thead');
+        if (thead) {
+            thead.style.position = 'sticky';
+            thead.style.top = '0';
+            thead.style.zIndex = '100';
+            
+            const thElements = thead.querySelectorAll('th');
+            thElements.forEach(th => {
+                th.style.position = 'sticky';
+                th.style.top = '0';
+                th.style.zIndex = '100';
+                th.style.backgroundColor = '#212529';
+                th.style.color = 'white';
+                th.style.borderBottom = '2px solid #dee2e6';
+            });
+        }
+    });
 }
 
 // Update pending transactions table
@@ -347,6 +720,30 @@ function updatePendingTransactionsTable(transactions) {
     if (tableContainer) {
         tableContainer.style.maxHeight = '400px';
         tableContainer.style.overflowY = 'auto';
+        tableContainer.style.overflowX = 'auto';
+        
+        // Ensure the parent card is not scrollable
+        const card = tableContainer.closest('.card');
+        if (card) {
+            card.style.overflow = 'visible';
+        }
+        
+        // Re-apply sticky headers after content update
+        const thead = tableContainer.querySelector('thead');
+        if (thead) {
+            thead.style.position = 'sticky';
+            thead.style.top = '0';
+            thead.style.zIndex = '100';
+            
+            const thElements = thead.querySelectorAll('th');
+            thElements.forEach(th => {
+                th.style.position = 'sticky';
+                th.style.top = '0';
+                th.style.zIndex = '100';
+                th.style.backgroundColor = '#212529';
+                th.style.color = 'white';
+            });
+        }
     }
 }
 
@@ -396,6 +793,30 @@ function updateCompletedTransactionsTable(transactions) {
     if (tableContainer) {
         tableContainer.style.maxHeight = '400px';
         tableContainer.style.overflowY = 'auto';
+        tableContainer.style.overflowX = 'auto';
+        
+        // Ensure the parent card is not scrollable
+        const card = tableContainer.closest('.card');
+        if (card) {
+            card.style.overflow = 'visible';
+        }
+        
+        // Re-apply sticky headers after content update
+        const thead = tableContainer.querySelector('thead');
+        if (thead) {
+            thead.style.position = 'sticky';
+            thead.style.top = '0';
+            thead.style.zIndex = '100';
+            
+            const thElements = thead.querySelectorAll('th');
+            thElements.forEach(th => {
+                th.style.position = 'sticky';
+                th.style.top = '0';
+                th.style.zIndex = '100';
+                th.style.backgroundColor = '#212529';
+                th.style.color = 'white';
+            });
+        }
     }
 }
 
@@ -440,9 +861,19 @@ function updateGatewayCards(gateways) {
                                 <div class="stat-number">${successRatePercentage}%</div>
                                 <div class="stat-label">Success Rate</div>
                             </div>
+                        </div>
+                        <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-number">${gateway.total_requests}</div>
-                                <div class="stat-label">Total Requests</div>
+                                <div class="stat-label">Total Recent Requests</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${gateway.recent_success_callbacks || 0}</div>
+                                <div class="stat-label">Recent Success Callbacks</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${gateway.recent_failure_callbacks || 0}</div>
+                                <div class="stat-label">Recent Failure Callbacks</div>
                             </div>
                         </div>
                         
@@ -470,8 +901,34 @@ setInterval(refreshTables, 5000);
 function initializeScrollableTables() {
     const tableContainers = document.querySelectorAll('.table-responsive');
     tableContainers.forEach(container => {
+        // Ensure only the table container is scrollable, not the card
         container.style.maxHeight = '400px';
         container.style.overflowY = 'auto';
+        container.style.overflowX = 'auto';
+        
+        // Ensure the parent card is not scrollable
+        const card = container.closest('.card');
+        if (card) {
+            card.style.overflow = 'visible';
+        }
+        
+        // Ensure sticky headers are properly set
+        const thead = container.querySelector('thead');
+        if (thead) {
+            thead.style.position = 'sticky';
+            thead.style.top = '0';
+            thead.style.zIndex = '100';
+            
+            // Set sticky positioning for each th element
+            const thElements = thead.querySelectorAll('th');
+            thElements.forEach(th => {
+                th.style.position = 'sticky';
+                th.style.top = '0';
+                th.style.zIndex = '100';
+                th.style.backgroundColor = '#212529';
+                th.style.color = 'white';
+            });
+        }
     });
 }
 
@@ -479,6 +936,9 @@ function initializeScrollableTables() {
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize scrollable tables
     initializeScrollableTables();
+    
+    // Apply sticky headers
+    applyStickyHeaders();
     
     // Initial refresh of all data
     refreshTables();
