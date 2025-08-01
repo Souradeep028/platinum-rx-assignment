@@ -179,6 +179,146 @@ class TransactionController {
       request_id: req.requestId
     });
   }
+
+  async bulkSuccess(req, res, next) {
+    const requestLogger = logger.createRequestLogger(req.requestId);
+    
+    try {
+      const pendingTransactions = transactionService.getPendingTransactions();
+      
+      if (pendingTransactions.length === 0) {
+        requestLogger.info('No pending transactions to process for bulk success');
+        return res.status(200).json({
+          message: 'No pending transactions to process',
+          processed_count: 0,
+          request_id: req.requestId
+        });
+      }
+
+      const results = [];
+      
+      for (const transaction of pendingTransactions) {
+        try {
+          const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
+            transaction.order_id,
+            'success',
+            transaction.selected_gateway,
+            'Bulk success operation',
+            requestLogger
+          );
+
+          gatewayService.updateHealthStats(transaction.selected_gateway, true, requestLogger);
+          
+          results.push({
+            order_id: transaction.order_id,
+            status: 'success',
+            gateway: transaction.selected_gateway
+          });
+          
+          requestLogger.info('Bulk success processed', {
+            order_id: transaction.order_id,
+            gateway: transaction.selected_gateway
+          });
+        } catch (error) {
+          requestLogger.error('Failed to process transaction in bulk success', {
+            order_id: transaction.order_id,
+            error: error.message
+          });
+          
+          results.push({
+            order_id: transaction.order_id,
+            status: 'error',
+            error: error.message
+          });
+        }
+      }
+
+      requestLogger.info('Bulk success operation completed', {
+        total_transactions: pendingTransactions.length,
+        successful: results.filter(r => r.status === 'success').length,
+        failed: results.filter(r => r.status === 'error').length
+      });
+
+      res.status(200).json({
+        message: 'Bulk success operation completed',
+        processed_count: pendingTransactions.length,
+        results: results,
+        request_id: req.requestId
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async bulkFailure(req, res, next) {
+    const requestLogger = logger.createRequestLogger(req.requestId);
+    
+    try {
+      const pendingTransactions = transactionService.getPendingTransactions();
+      
+      if (pendingTransactions.length === 0) {
+        requestLogger.info('No pending transactions to process for bulk failure');
+        return res.status(200).json({
+          message: 'No pending transactions to process',
+          processed_count: 0,
+          request_id: req.requestId
+        });
+      }
+
+      const results = [];
+      
+      for (const transaction of pendingTransactions) {
+        try {
+          const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
+            transaction.order_id,
+            'failure',
+            transaction.selected_gateway,
+            'Bulk failure operation',
+            requestLogger
+          );
+
+          gatewayService.updateHealthStats(transaction.selected_gateway, false, requestLogger);
+          
+          results.push({
+            order_id: transaction.order_id,
+            status: 'failure',
+            gateway: transaction.selected_gateway
+          });
+          
+          requestLogger.info('Bulk failure processed', {
+            order_id: transaction.order_id,
+            gateway: transaction.selected_gateway
+          });
+        } catch (error) {
+          requestLogger.error('Failed to process transaction in bulk failure', {
+            order_id: transaction.order_id,
+            error: error.message
+          });
+          
+          results.push({
+            order_id: transaction.order_id,
+            status: 'error',
+            error: error.message
+          });
+        }
+      }
+
+      requestLogger.info('Bulk failure operation completed', {
+        total_transactions: pendingTransactions.length,
+        successful: results.filter(r => r.status === 'failure').length,
+        failed: results.filter(r => r.status === 'error').length
+      });
+
+      res.status(200).json({
+        message: 'Bulk failure operation completed',
+        processed_count: pendingTransactions.length,
+        results: results,
+        request_id: req.requestId
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 module.exports = new TransactionController(); 

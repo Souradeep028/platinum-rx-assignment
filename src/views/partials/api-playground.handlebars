@@ -1,6 +1,6 @@
 <div class="row">
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-md-4">
+        <div class="card h-100">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-play-circle me-2"></i>
@@ -11,39 +11,53 @@
                 <form id="transactionForm">
                     <div class="mb-3">
                         <label for="orderId" class="form-label">Order ID</label>
-                        <input type="text" class="form-control" id="orderId" name="order_id" 
-                               placeholder="Enter order ID" required>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="orderId" name="order_id" 
+                                   placeholder="Enter order ID" value="ORD_1234" required>
+                            <button type="button" class="btn btn-outline-secondary" onclick="generateNewOrderId()" 
+                                    title="Generate new Order ID">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Click the refresh button to generate a unique Order ID</div>
                     </div>
                     <div class="mb-3">
                         <label for="amount" class="form-label">Amount</label>
                         <input type="number" class="form-control" id="amount" name="amount" 
-                               placeholder="Enter amount" step="0.01" required>
+                               placeholder="Enter amount" step="0.01" value="100.00" min="0.01" required>
+                        <div class="form-text">Enter amount in INR (minimum INR 0.01)</div>
                     </div>
                     <div class="mb-3">
                         <label for="paymentInstrument" class="form-label">Payment Instrument</label>
                         <select class="form-select" id="paymentInstrument" name="payment_instrument" required>
                             <option value="">Select payment instrument</option>
-                            <option value="card">Credit/Debit Card</option>
+                            <option value="card" selected>Credit/Debit Card</option>
                             <option value="upi">UPI</option>
                             <option value="netbanking">Net Banking</option>
                         </select>
+                        <div class="form-text">Different payment methods may route to different gateways</div>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-paper-plane me-2"></i>
-                        Initiate Transaction
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-2"></i>
+                            Initiate Transaction
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
     
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-terminal me-2"></i>
                     API Response
                 </h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearResponseArea()">
+                    <i class="fas fa-times me-1"></i>Clear
+                </button>
             </div>
             <div class="card-body">
                 <div id="responseArea" class="response-area" style="display: none;">
@@ -56,12 +70,9 @@
             </div>
         </div>
     </div>
-</div>
 
-<!-- Bulk Transaction Generation -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
+    <div class="col-md-4">
+        <div class="card h-100">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-layer-group me-2"></i>
@@ -70,43 +81,31 @@
             </div>
             <div class="card-body">
                 <form id="bulkTransactionForm">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label for="bulkCount" class="form-label">Number of Transactions</label>
-                                <input type="number" class="form-control" id="bulkCount" name="bulk_count" 
-                                       placeholder="Enter count" min="1" max="100" value="10" required>
-                                <div class="form-text">Maximum 100 transactions per batch</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label for="bulkAmount" class="form-label">Amount (Fixed)</label>
-                                <input type="number" class="form-control" id="bulkAmount" name="bulk_amount" 
-                                       placeholder="Enter amount" step="0.01" value="100.00" required>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label for="bulkPaymentInstrument" class="form-label">Payment Instrument</label>
-                                <select class="form-select" id="bulkPaymentInstrument" name="bulk_payment_instrument" required>
-                                    <option value="card">Credit/Debit Card</option>
-                                    <option value="upi">UPI</option>
-                                    <option value="netbanking">Net Banking</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label class="form-label">&nbsp;</label>
-                                <div>
-                                    <button type="submit" class="btn btn-success w-100" id="bulkSubmitBtn">
-                                        <i class="fas fa-rocket me-2"></i>
-                                        Generate Bulk Transactions
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="mb-3">
+                        <label for="bulkCount" class="form-label">Number of Transactions</label>
+                        <input type="number" class="form-control" id="bulkCount" name="bulk_count" 
+                               placeholder="Enter count" min="1" max="100" value="25" required>
+                        <div class="form-text">Maximum 100 transactions per batch (recommended: 5-10)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulkAmount" class="form-label">Amount (Fixed)</label>
+                        <input type="number" class="form-control" id="bulkAmount" name="bulk_amount" 
+                               placeholder="Enter amount" step="0.01" value="50.00" min="0.01" required>
+                        <div class="form-text">Fixed amount for all transactions in batch</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulkPaymentInstrument" class="form-label">Payment Instrument</label>
+                        <select class="form-select" id="bulkPaymentInstrument" name="bulk_payment_instrument" required>
+                            <option value="card">Credit/Debit Card</option>
+                            <option value="upi">UPI</option>
+                            <option value="netbanking">Net Banking</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-success w-100" id="bulkSubmitBtn">
+                            <i class="fas fa-rocket me-2"></i>
+                            Generate Bulk Transactions
+                        </button>
                     </div>
                 </form>
                 

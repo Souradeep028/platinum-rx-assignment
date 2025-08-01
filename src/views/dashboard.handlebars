@@ -212,6 +212,16 @@ document.getElementById('transactionForm').addEventListener('submit', async func
     e.preventDefault();
     console.log('Form submitted, preventing default');
     
+    // Clear any previous response and show loading state
+    const responseArea = document.getElementById('responseArea');
+    const responsePlaceholder = document.getElementById('responsePlaceholder');
+    responseArea.style.display = 'none';
+    responsePlaceholder.style.display = 'block';
+    responsePlaceholder.innerHTML = `
+        <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+        <p>Processing transaction...</p>
+    `;
+    
     const formData = new FormData(this);
     const paymentInstrumentType = formData.get('payment_instrument');
     
@@ -253,6 +263,25 @@ document.getElementById('transactionForm').addEventListener('submit', async func
         addGatewayLog(`Transaction initiated with gateway: ${response.data.selected_gateway}`);
         currentTransaction = response.data;
         
+        // Ensure placeholder is hidden
+        const responsePlaceholder = document.getElementById('responsePlaceholder');
+        if (responsePlaceholder) {
+            responsePlaceholder.style.display = 'none';
+        }
+        
+        // Double-check after a short delay
+        setTimeout(() => {
+            if (responsePlaceholder && responsePlaceholder.style.display !== 'none') {
+                console.warn('Placeholder still visible after success, forcing hide');
+                responsePlaceholder.style.display = 'none';
+            }
+        }, 200);
+        
+        // Generate new order ID for next transaction
+        setTimeout(() => {
+            generateNewOrderId();
+        }, 1500);
+        
         // Refresh tables after a short delay
         setTimeout(() => {
             refreshTables();
@@ -265,6 +294,20 @@ document.getElementById('transactionForm').addEventListener('submit', async func
             error: error.response?.data?.error || 'Failed to initiate transaction',
             details: error.response?.data || error.message
         });
+        
+        // Ensure placeholder is hidden even for errors
+        const responsePlaceholder = document.getElementById('responsePlaceholder');
+        if (responsePlaceholder) {
+            responsePlaceholder.style.display = 'none';
+        }
+        
+        // Double-check after a short delay
+        setTimeout(() => {
+            if (responsePlaceholder && responsePlaceholder.style.display !== 'none') {
+                console.warn('Placeholder still visible after error, forcing hide');
+                responsePlaceholder.style.display = 'none';
+            }
+        }, 200);
     }
 });
 
@@ -385,59 +428,11 @@ document.getElementById('bulkTransactionForm').addEventListener('submit', async 
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<i class="fas fa-rocket me-2"></i>Generate Bulk Transactions';
     
-    // Display results
-    resultsContent.innerHTML = `
-        <div class="row">
-            <div class="col-md-4">
-                <div class="text-center">
-                    <h4 class="text-success">${results.successful}</h4>
-                    <small class="text-muted">Successful</small>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="text-center">
-                    <h4 class="text-danger">${results.failed}</h4>
-                    <small class="text-muted">Failed</small>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="text-center">
-                    <h4 class="text-info">${results.total}</h4>
-                    <small class="text-muted">Total</small>
-                </div>
-            </div>
-        </div>
-        <hr>
-        <div class="mt-3">
-            <h6>Transaction Details:</h6>
-            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th style="position: sticky; top: 0; background-color: #f8f9fa; z-index: 10; border-bottom: 2px solid #dee2e6;">Order ID</th>
-                            <th style="position: sticky; top: 0; background-color: #f8f9fa; z-index: 10; border-bottom: 2px solid #dee2e6;">Status</th>
-                            <th style="position: sticky; top: 0; background-color: #f8f9fa; z-index: 10; border-bottom: 2px solid #dee2e6;">Gateway</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${results.transactions.map(t => `
-                            <tr>
-                                <td><code>${t.order_id}</code></td>
-                                <td>
-                                    <span class="badge ${t.status === 'success' ? 'bg-success' : 'bg-danger'}">
-                                        ${t.status}
-                                    </span>
-                                </td>
-                                <td>${t.gateway || '-'}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
+    // Show simple completion alert
+    alert(`Bulk transaction generation completed!`);
     
-    resultsDiv.style.display = 'block';
+    // Hide the results div
+    resultsDiv.style.display = 'none';
     
     // Refresh tables after bulk operation
     setTimeout(() => {
@@ -454,15 +449,96 @@ function generateRandomOrderId() {
     return `BULK_${timestamp}_${random}`;
 }
 
+// Generate unique order ID for single transactions
+function generateUniqueOrderId() {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    return `ORD_${timestamp}_${random}`;
+}
+
+// Generate new order ID button function
+function generateNewOrderId() {
+    const orderIdField = document.getElementById('orderId');
+    if (orderIdField) {
+        orderIdField.value = generateUniqueOrderId();
+    }
+}
+
+// Reset form to defaults
+function resetFormToDefaults() {
+    const orderIdField = document.getElementById('orderId');
+    const amountField = document.getElementById('amount');
+    const paymentInstrumentField = document.getElementById('paymentInstrument');
+    
+    if (orderIdField) {
+        orderIdField.value = generateUniqueOrderId();
+    }
+    if (amountField) {
+        amountField.value = '100.00';
+    }
+    if (paymentInstrumentField) {
+        paymentInstrumentField.value = 'card';
+    }
+}
+
 // Display API response
 function displayResponse(data) {
     const responseArea = document.getElementById('responseArea');
     const responseContent = document.getElementById('responseContent');
     const responsePlaceholder = document.getElementById('responsePlaceholder');
     
+    console.log('Displaying response:', data);
+    console.log('Response area element:', responseArea);
+    console.log('Response placeholder element:', responsePlaceholder);
+    
+    if (!responseArea || !responseContent || !responsePlaceholder) {
+        console.error('One or more response elements not found:', {
+            responseArea: !!responseArea,
+            responseContent: !!responseContent,
+            responsePlaceholder: !!responsePlaceholder
+        });
+        return;
+    }
+    
     responseContent.textContent = JSON.stringify(data, null, 2);
     responseArea.style.display = 'block';
     responsePlaceholder.style.display = 'none';
+    
+    // Double-check that placeholder is hidden
+    setTimeout(() => {
+        if (responsePlaceholder.style.display !== 'none') {
+            console.warn('Placeholder still visible, forcing hide');
+            responsePlaceholder.style.display = 'none';
+        }
+    }, 100);
+}
+
+// Reset response area to show placeholder
+function resetResponseArea() {
+    const responseArea = document.getElementById('responseArea');
+    const responsePlaceholder = document.getElementById('responsePlaceholder');
+    
+    responseArea.style.display = 'none';
+    responsePlaceholder.style.display = 'block';
+    responsePlaceholder.innerHTML = `
+        <i class="fas fa-arrow-left fa-2x mb-3"></i>
+        <p>Response will appear here after initiating a transaction</p>
+    `;
+}
+
+// Clear response area completely
+function clearResponseArea() {
+    const responseArea = document.getElementById('responseArea');
+    const responseContent = document.getElementById('responseContent');
+    const responsePlaceholder = document.getElementById('responsePlaceholder');
+    
+    responseContent.textContent = '';
+    responseArea.style.display = 'none';
+    responsePlaceholder.style.display = 'block';
+    responsePlaceholder.innerHTML = `
+        <i class="fas fa-arrow-left fa-2x mb-3"></i>
+        <p>Response will appear here after initiating a transaction</p>
+    `;
 }
 
 // Add gateway selection log
@@ -576,6 +652,87 @@ async function triggerCallback(orderId, status, gateway) {
     }
 }
 
+// Trigger bulk success for all pending transactions
+async function triggerBulkSuccess() {
+    if (!confirm('Are you sure you want to mark all pending transactions as successful?')) {
+        return;
+    }
+    
+    try {
+        console.log('Triggering bulk success for all pending transactions');
+        const response = await axios.post('/transactions/bulk-success');
+        console.log('Bulk success API response:', response.data);
+        
+        addGatewayLog(`Bulk success operation completed: ${response.data.processed_count} transactions processed`);
+        
+        // Show results if available
+        if (response.data.results && response.data.results.length > 0) {
+            const successful = response.data.results.filter(r => r.status === 'success').length;
+            const failed = response.data.results.filter(r => r.status === 'error').length;
+            addGatewayLog(`Bulk success results: ${successful} successful, ${failed} errors`);
+        }
+        
+        // Check gateway health after bulk operation
+        await checkGatewayHealth();
+        
+        // Refresh tables after bulk operation
+        setTimeout(() => {
+            refreshTables();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Bulk success error:', error);
+        console.error('Bulk success error response:', error.response?.data);
+        alert(`Failed to trigger bulk success: ${error.response?.data?.error || error.message}`);
+    }
+}
+
+// Trigger bulk failure for all pending transactions
+async function triggerBulkFailure() {
+    if (!confirm('Are you sure you want to mark all pending transactions as failed?')) {
+        return;
+    }
+    
+    try {
+        console.log('Triggering bulk failure for all pending transactions');
+        const response = await axios.post('/transactions/bulk-failure');
+        console.log('Bulk failure API response:', response.data);
+        
+        addGatewayLog(`Bulk failure operation completed: ${response.data.processed_count} transactions processed`);
+        
+        // Show results if available
+        if (response.data.results && response.data.results.length > 0) {
+            const successful = response.data.results.filter(r => r.status === 'failure').length;
+            const failed = response.data.results.filter(r => r.status === 'error').length;
+            addGatewayLog(`Bulk failure results: ${successful} failed, ${failed} errors`);
+        }
+        
+        // Check gateway health after bulk operation
+        await checkGatewayHealth();
+        
+        // Refresh tables after bulk operation
+        setTimeout(() => {
+            refreshTables();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Bulk failure error:', error);
+        console.error('Bulk failure error response:', error.response?.data);
+        alert(`Failed to trigger bulk failure: ${error.response?.data?.error || error.message}`);
+    }
+}
+
+// Update bulk operation button states
+function updateBulkButtonStates(hasPendingTransactions) {
+    const bulkSuccessBtn = document.getElementById('bulkSuccessBtn');
+    const bulkFailureBtn = document.getElementById('bulkFailureBtn');
+    
+    if (bulkSuccessBtn && bulkFailureBtn) {
+        bulkSuccessBtn.disabled = !hasPendingTransactions;
+        bulkFailureBtn.disabled = !hasPendingTransactions;
+    }
+}
+
 // Check gateway health
 async function checkGatewayHealth() {
     try {
@@ -676,6 +833,9 @@ function applyStickyHeaders() {
 // Update pending transactions table
 function updatePendingTransactionsTable(transactions) {
     const tbody = document.getElementById('pendingTransactionsTable');
+    
+    // Update button states based on pending transactions
+    updateBulkButtonStates(transactions.length > 0);
     
     if (transactions.length === 0) {
         tbody.innerHTML = `
@@ -942,6 +1102,25 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initial refresh of all data
     refreshTables();
+    
+    // Initialize response area
+    const responseArea = document.getElementById('responseArea');
+    const responsePlaceholder = document.getElementById('responsePlaceholder');
+    
+    if (responseArea && responsePlaceholder) {
+        responseArea.style.display = 'none';
+        responsePlaceholder.style.display = 'block';
+        responsePlaceholder.innerHTML = `
+            <i class="fas fa-arrow-left fa-2x mb-3"></i>
+            <p>Response will appear here after initiating a transaction</p>
+        `;
+    }
+    
+    // Set default order ID
+    const orderIdField = document.getElementById('orderId');
+    if (orderIdField) {
+        orderIdField.value = generateUniqueOrderId();
+    }
     
     // Add event delegation for callback buttons
     document.addEventListener('click', function(e) {

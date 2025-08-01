@@ -43,4 +43,18 @@ router.get('/order/:orderId',
   transactionController.getTransactionByOrderId
 );
 
+router.post('/bulk-success',
+  validateMethod(['POST']),
+  sanitizeInput,
+  handleValidationErrors,
+  transactionController.bulkSuccess
+);
+
+router.post('/bulk-failure',
+  validateMethod(['POST']),
+  sanitizeInput,
+  handleValidationErrors,
+  transactionController.bulkFailure
+);
+
 module.exports = router; 

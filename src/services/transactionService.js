@@ -82,6 +82,10 @@ class TransactionService {
       .filter(transaction => transaction.status === status);
   }
 
+  getPendingTransactions() {
+    return this.getTransactionsByStatus('pending');
+  }
+
   getTransactionStats() {
     const transactions = Array.from(this.transactions.values());
     const stats = {

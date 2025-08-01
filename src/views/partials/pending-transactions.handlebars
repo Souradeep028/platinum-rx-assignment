@@ -1,9 +1,25 @@
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0">
-            <i class="fas fa-clock me-2"></i>
-            Pending Transactions
-        </h5>
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-clock me-2"></i>
+                Pending Transactions
+            </h5>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-success btn-sm" 
+                        onclick="triggerBulkSuccess()" 
+                        id="bulkSuccessBtn"
+                        {{#unless pending_transactions.length}}disabled{{/unless}}>
+                    <i class="fas fa-check-double me-1"></i>Bulk Success
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" 
+                        onclick="triggerBulkFailure()" 
+                        id="bulkFailureBtn"
+                        {{#unless pending_transactions.length}}disabled{{/unless}}>
+                    <i class="fas fa-times-double me-1"></i>Bulk Failure
+                </button>
+            </div>
+        </div>
     </div>
     <div class="card-body">
         <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
