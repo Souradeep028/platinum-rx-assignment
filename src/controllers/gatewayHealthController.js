@@ -68,6 +68,48 @@ class GatewayHealthController {
       request_id: req.requestId
     });
   }
+
+  async resetApplication(req, res, next) {
+    const requestLogger = logger.createRequestLogger(req.requestId);
+    const gatewayService = require('../services/gatewayService');
+    const transactionService = require('../services/transactionService');
+
+    try {
+      // Reset all gateways to healthy state
+      gatewayService.resetAllGateways(requestLogger);
+      
+      // Clear all transactions
+      transactionService.clearAllTransactions(requestLogger);
+
+      const resetResponse = {
+        message: 'Application reset successfully',
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId,
+        reset_details: {
+          gateways_reset: true,
+          transactions_cleared: true
+        }
+      };
+
+      requestLogger.info('Application reset requested', {
+        gateways_reset: true,
+        transactions_cleared: true
+      });
+
+      res.status(200).json(resetResponse);
+    } catch (error) {
+      requestLogger.error('Application reset failed', {
+        error: error.message
+      });
+
+      res.status(500).json({
+        error: 'Failed to reset application',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId
+      });
+    }
+  }
 }
 
 module.exports = new GatewayHealthController(); 

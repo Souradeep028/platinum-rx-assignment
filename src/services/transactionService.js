@@ -124,6 +124,18 @@ class TransactionService {
 
     return stats;
   }
+
+  clearAllTransactions(requestLogger = null) {
+    const log = requestLogger || logger;
+    const transactionCount = this.transactions.size;
+    
+    this.transactions.clear();
+    this.orderIdToTransactionId.clear();
+
+    log.info('All transactions cleared from memory', {
+      cleared_transactions: transactionCount
+    });
+  }
 }
 
 module.exports = new TransactionService(); 

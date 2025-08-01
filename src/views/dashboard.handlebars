@@ -2,11 +2,15 @@
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h4 class="mb-0">
                     <i class="fas fa-heartbeat me-2"></i>
                     Gateway Health Status
                 </h4>
+                <button id="resetAppBtn" class="btn btn-warning btn-sm" onclick="resetApplication()">
+                    <i class="fas fa-redo me-1"></i>
+                    Reset App
+                </button>
             </div>
             <div class="card-body">
                 {{> gateway-cards}}
@@ -667,6 +671,50 @@ function clearGatewayLogs() {
     console.log('Gateway logs cleared');
 }
 
+// Reset application state
+async function resetApplication() {
+    // Show Chrome-style alert with confirmation
+    if (!confirm('⚠️ RESET APPLICATION\n\nThis will:\n• Clear all transactions\n• Reset all gateways to healthy state\n• Clear all memory\n\nAre you sure you want to proceed?')) {
+        return;
+    }
+    
+    const resetBtn = document.getElementById('resetAppBtn');
+    const originalText = resetBtn.innerHTML;
+    
+    try {
+        // Show loading state
+        resetBtn.disabled = true;
+        resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resetting...';
+        
+        console.log('Initiating application reset...');
+        const response = await axios.post('/gateway/reset');
+        console.log('Reset API response:', response.data);
+        
+        // Clear gateway logs
+        clearGatewayLogs();
+        
+        // Add log entry
+        addGatewayLog('Application reset completed - all transactions cleared and gateways reset to healthy');
+        
+        // Refresh all data
+        setTimeout(() => {
+            refreshTables();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Reset failed:', error);
+        console.error('Reset error response:', error.response?.data);
+        
+        alert(`❌ Failed to reset application: ${error.response?.data?.error || error.message}`);
+        addGatewayLog(`ERROR: Application reset failed - ${error.response?.data?.error || error.message}`);
+        
+    } finally {
+        // Restore button state
+        resetBtn.disabled = false;
+        resetBtn.innerHTML = originalText;
+    }
+}
+
 // Trigger callback for pending transaction
 async function triggerCallback(orderId, status, gateway) {
     console.log('Triggering callback for:', { orderId, status, gateway });
@@ -1184,6 +1232,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (orderIdField) {
         orderIdField.value = generateUniqueOrderId();
     }
+    
+    // Initialize gateway logs display
+    updateGatewayLogs();
     
     // Add event delegation for callback buttons
     document.addEventListener('click', function(e) {

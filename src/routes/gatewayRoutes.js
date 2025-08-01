@@ -13,4 +13,9 @@ router.get('/stats',
   gatewayHealthController.getGatewayStats
 );
 
+router.post('/reset', 
+  validateMethod(['POST']),
+  gatewayHealthController.resetApplication
+);
+
 module.exports = router; 
