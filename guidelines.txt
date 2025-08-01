@@ -1,0 +1,70 @@
+The assignment outlines the design and implementation of a Payment Service for dynamic routing across multiple payment gateways. Here’s a breakdown of what each API is supposed to do:
+
+
+🔄 1. Initiate Transaction API
+
+Endpoint: POST /transactions/initiate
+
+Input (Request Payload):
+
+{
+  "order_id": "ORD123",
+  "amount": 499.0,
+  "payment_instrument": {
+    "type": "card",
+    "card_number": "****",
+    "expiry": "MM/YY"
+    // ... other card details
+  }
+}
+
+Expected Behavior:
+	•	Use routing logic that considers:
+	•	Load distribution (based on configured percentage weights)
+	•	Gateway health (disable if success rate < threshold)
+	•	Select a payment gateway accordingly.
+	•	Simulate or mock the actual payment call (no real integration needed).
+	•	Store the transaction locally with:
+	•	order_id, amount, selected gateway, and initial status = pending.
+
+Output (Response):
+	•	Return the created transaction entity including:
+	•	Chosen gateway
+	•	Status = pending
+
+
+📥 2. Callback API
+
+Endpoint: POST /transactions/callback
+
+Input (Request Payload):
+
+{
+  "order_id": "ORD123",
+  "status": "success" | "failure",
+  "gateway": "razorpay",
+  "reason": "Customer Cancelled" // optional
+}
+
+Expected Behavior:
+	•	Update the stored transaction’s status to success or failure.
+	•	Maintain gateway performance stats:
+	•	Track number of successes and failures over time.
+	•	If a gateway’s failure rate > threshold (e.g., 10%) within 15 minutes:
+	•	Mark the gateway as “unhealthy”
+	•	Exclude it from routing decisions for next 30 minutes
+
+✅ Functional Expectations:
+	•	Local or in-memory persistence of:
+            -Transactions
+	•	Gateway health & routing weights
+	•	Resilient and fault-tolerant routing
+	•	Logging for:
+		    -Gateway selection
+		    -Status updates
+		    -Health state changes
+    •   Working implementation with clean, modular code
+
+📎 Bonus Points:
+	•	Host with Docker (e.g., Docker Compose)
+	•	Basic test coverage (unit or integration)

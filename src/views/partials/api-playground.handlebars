@@ -1,0 +1,80 @@
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-play-circle me-2"></i>
+                    Transaction Initiation API
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="transactionForm">
+                    <div class="mb-3">
+                        <label for="orderId" class="form-label">Order ID</label>
+                        <input type="text" class="form-control" id="orderId" name="order_id" 
+                               placeholder="Enter order ID" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount</label>
+                        <input type="number" class="form-control" id="amount" name="amount" 
+                               placeholder="Enter amount" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="paymentInstrument" class="form-label">Payment Instrument</label>
+                        <select class="form-select" id="paymentInstrument" name="payment_instrument" required>
+                            <option value="">Select payment instrument</option>
+                            <option value="card">Credit/Debit Card</option>
+                            <option value="upi">UPI</option>
+                            <option value="netbanking">Net Banking</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane me-2"></i>
+                        Initiate Transaction
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-terminal me-2"></i>
+                    API Response
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="responseArea" class="response-area" style="display: none;">
+                    <pre id="responseContent"></pre>
+                </div>
+                <div id="responsePlaceholder" class="text-muted text-center py-4">
+                    <i class="fas fa-arrow-left fa-2x mb-3"></i>
+                    <p>Response will appear here after initiating a transaction</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Gateway Selection Logs
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="gatewayLogs" class="log-container">
+                    <div class="text-muted text-center py-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Gateway selection logs will appear here
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

@@ -1,0 +1,47 @@
+<div class="row">
+    {{#each gateways}}
+    <div class="col-md-4 mb-3">
+        <div class="card gateway-card {{#if is_healthy}}gateway-healthy{{else}}gateway-unhealthy{{/if}}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-credit-card me-2"></i>
+                        {{@key}}
+                    </h5>
+                    <span class="badge {{#if is_healthy}}bg-success{{else}}bg-danger{{/if}} status-badge">
+                        {{#if is_healthy}}
+                            <i class="fas fa-check-circle me-1"></i>Healthy
+                        {{else}}
+                            <i class="fas fa-times-circle me-1"></i>Unhealthy
+                        {{/if}}
+                    </span>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">{{weight}}%</div>
+                        <div class="stat-label">Weight</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{success_rate_percentage}}%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{total_requests}}</div>
+                        <div class="stat-label">Total Requests</div>
+                    </div>
+                </div>
+                
+                {{#if disabled_until}}
+                <div class="alert alert-warning mt-2 mb-0">
+                    <small>
+                        <i class="fas fa-clock me-1"></i>
+                        Disabled until: {{formatDate disabled_until}}
+                    </small>
+                </div>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+    {{/each}}
+</div> 

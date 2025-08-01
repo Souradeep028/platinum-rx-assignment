@@ -1,0 +1,498 @@
+<!-- Gateway Health Cards -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-heartbeat me-2"></i>
+                    Gateway Health Status
+                </h4>
+            </div>
+            <div class="card-body">
+                {{> gateway-cards}}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API Playground -->
+<div class="row mb-4">
+    <div class="col-12">
+        {{> api-playground}}
+    </div>
+</div>
+
+<!-- Pending Transactions -->
+<div class="row mb-4">
+    <div class="col-12">
+        {{> pending-transactions}}
+    </div>
+</div>
+
+<!-- Completed Transactions -->
+<div class="row mb-4">
+    <div class="col-12">
+        {{> completed-transactions}}
+    </div>
+</div>
+
+<style>
+/* Custom styles for scrollable tables */
+.table-responsive {
+    border-radius: 0.375rem;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Ensure sticky header works properly */
+.table thead th {
+    background-color: #212529 !important;
+    border-bottom: 2px solid #dee2e6;
+}
+
+/* Add some spacing for better readability */
+.table tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* Ensure proper spacing in scrollable tables */
+.table-responsive .table {
+    margin-bottom: 0;
+}
+
+.table-responsive .table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Add smooth transitions for better UX */
+.table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+/* Ensure buttons in scrollable tables are properly sized */
+.table-responsive .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+</style>
+
+<script>
+// Global variables for tracking
+let gatewayLogs = [];
+let currentTransaction = null;
+
+// Handle transaction form submission
+document.getElementById('transactionForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    console.log('Form submitted, preventing default');
+    
+    const formData = new FormData(this);
+    const paymentInstrumentType = formData.get('payment_instrument');
+    
+    console.log('Payment instrument type:', paymentInstrumentType);
+    console.log('Form data:', {
+        order_id: formData.get('order_id'),
+        amount: formData.get('amount'),
+        payment_instrument: paymentInstrumentType
+    });
+    
+    // Build the payload based on payment instrument type
+    let payload = {
+        order_id: formData.get('order_id'),
+        amount: parseFloat(formData.get('amount')),
+        payment_instrument: {
+            type: paymentInstrumentType
+        }
+    };
+    
+    // Add specific fields based on payment instrument type
+    if (paymentInstrumentType === 'card') {
+        payload.payment_instrument.card_number = '4111111111111111';
+        payload.payment_instrument.expiry = '12/25';
+        payload.payment_instrument.cvv = '123';
+        payload.payment_instrument.card_holder_name = 'Test User';
+    } else if (paymentInstrumentType === 'upi') {
+        payload.payment_instrument.upi_id = 'testuser@bank';
+    } else if (paymentInstrumentType === 'netbanking') {
+        payload.payment_instrument.bank_code = 'HDFC';
+    }
+    
+    console.log('Sending payload:', JSON.stringify(payload, null, 2));
+    
+    try {
+        console.log('Making API request to /transactions/initiate');
+        const response = await axios.post('/transactions/initiate', payload);
+        console.log('API response:', response.data);
+        displayResponse(response.data);
+        addGatewayLog(`Transaction initiated with gateway: ${response.data.selected_gateway}`);
+        currentTransaction = response.data;
+        
+        // Refresh tables after a short delay
+        setTimeout(() => {
+            refreshTables();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('API request failed:', error);
+        console.error('Error response:', error.response?.data);
+        displayResponse({
+            error: error.response?.data?.error || 'Failed to initiate transaction',
+            details: error.response?.data || error.message
+        });
+    }
+});
+
+// Display API response
+function displayResponse(data) {
+    const responseArea = document.getElementById('responseArea');
+    const responseContent = document.getElementById('responseContent');
+    const responsePlaceholder = document.getElementById('responsePlaceholder');
+    
+    responseContent.textContent = JSON.stringify(data, null, 2);
+    responseArea.style.display = 'block';
+    responsePlaceholder.style.display = 'none';
+}
+
+// Add gateway selection log
+function addGatewayLog(message) {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = {
+        timestamp: timestamp,
+        message: message
+    };
+    
+    gatewayLogs.unshift(logEntry);
+    if (gatewayLogs.length > 10) {
+        gatewayLogs = gatewayLogs.slice(0, 10);
+    }
+    
+    updateGatewayLogs();
+}
+
+// Update gateway logs display
+function updateGatewayLogs() {
+    const logsContainer = document.getElementById('gatewayLogs');
+    
+    if (gatewayLogs.length === 0) {
+        logsContainer.innerHTML = `
+            <div class="text-muted text-center py-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Gateway selection logs will appear here
+            </div>
+        `;
+        return;
+    }
+    
+    logsContainer.innerHTML = gatewayLogs.map(log => `
+        <div class="log-entry">
+            <small class="text-muted">${log.timestamp}</small>
+            <div class="mt-1">${log.message}</div>
+        </div>
+    `).join('');
+}
+
+// Trigger callback for pending transaction
+async function triggerCallback(orderId, status, gateway) {
+    console.log('Triggering callback for:', { orderId, status, gateway });
+    
+    const payload = {
+        order_id: orderId,
+        status: status,
+        gateway: gateway,
+        reason: status === 'success' ? 'Payment processed successfully' : 'Payment failed'
+    };
+    
+    try {
+        console.log('Making callback API request:', payload);
+        const response = await axios.post('/transactions/callback', payload);
+        console.log('Callback API response:', response.data);
+        addGatewayLog(`Callback triggered for ${orderId}: ${status}`);
+        
+        // Check gateway health after callback
+        await checkGatewayHealth();
+        
+        // Refresh tables after callback
+        setTimeout(() => {
+            refreshTables();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Callback error:', error);
+        console.error('Callback error response:', error.response?.data);
+        alert(`Failed to trigger callback: ${error.response?.data?.error || error.message}`);
+    }
+}
+
+// Check gateway health
+async function checkGatewayHealth() {
+    try {
+        console.log('Checking gateway health...');
+        const response = await axios.get('/gateway/health');
+        console.log('Gateway health response:', response.data);
+        
+        if (response.data.gateways) {
+            const gatewayHealth = response.data.gateways;
+            addGatewayLog(`Gateway health check completed - ${Object.keys(gatewayHealth).length} gateways monitored`);
+            
+            // Log individual gateway status
+            Object.entries(gatewayHealth).forEach(([gatewayName, gateway]) => {
+                const status = gateway.is_healthy ? 'healthy' : 'unhealthy';
+                const successRate = gateway.success_rate ? ` (${(gateway.success_rate * 100).toFixed(1)}% success)` : '';
+                addGatewayLog(`${gatewayName}: ${status}${successRate}`);
+            });
+            
+            // Update gateway cards with fresh data
+            updateGatewayCards(gatewayHealth);
+        }
+        
+    } catch (error) {
+        console.error('Failed to check gateway health:', error);
+        addGatewayLog(`Gateway health check failed: ${error.message}`);
+    }
+}
+
+// Refresh transaction tables and gateway stats
+async function refreshTables() {
+    try {
+        console.log('Refreshing transaction tables and gateway stats...');
+        
+        // Get transaction data
+        const transactionResponse = await axios.get('/transactions');
+        console.log('Transactions API response:', transactionResponse.data);
+        const transactionData = transactionResponse.data;
+        
+        // Get gateway stats
+        const gatewayResponse = await axios.get('/gateway/stats');
+        console.log('Gateway stats API response:', gatewayResponse.data);
+        const gatewayData = gatewayResponse.data;
+        
+        // Update pending transactions
+        updatePendingTransactionsTable(transactionData.transaction_stats.recent_transactions.filter(t => t.status === 'pending'));
+        
+        // Update completed transactions
+        updateCompletedTransactionsTable(transactionData.transaction_stats.recent_transactions.filter(t => t.status !== 'pending'));
+        
+        // Update gateway cards
+        updateGatewayCards(gatewayData.gateway_stats);
+        
+        // Ensure scrollable behavior is maintained after updates
+        initializeScrollableTables();
+        
+    } catch (error) {
+        console.error('Failed to refresh tables:', error);
+    }
+}
+
+// Update pending transactions table
+function updatePendingTransactionsTable(transactions) {
+    const tbody = document.getElementById('pendingTransactionsTable');
+    
+    if (transactions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+                    No pending transactions
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Create table rows with proper structure for scrollable table
+    tbody.innerHTML = transactions.map(transaction => `
+        <tr data-transaction-id="${transaction.transaction_id}" data-order-id="${transaction.order_id}">
+            <td>${transaction.order_id}</td>
+            <td>$${transaction.amount}</td>
+            <td><span class="badge bg-info">${transaction.payment_instrument.type}</span></td>
+            <td><span class="badge bg-secondary">${transaction.selected_gateway}</span></td>
+            <td><span class="badge bg-warning">${transaction.status}</span></td>
+            <td>${new Date(transaction.created_at).toLocaleString()}</td>
+            <td>
+                <button class="btn btn-success btn-sm btn-action callback-btn" 
+                        data-order-id="${transaction.order_id}" 
+                        data-status="success" 
+                        data-gateway="${transaction.selected_gateway}">
+                    <i class="fas fa-check me-1"></i>Success
+                </button>
+                <button class="btn btn-danger btn-sm btn-action callback-btn" 
+                        data-order-id="${transaction.order_id}" 
+                        data-status="failure" 
+                        data-gateway="${transaction.selected_gateway}">
+                    <i class="fas fa-times me-1"></i>Failure
+                </button>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Ensure the table container maintains scrollable behavior
+    const tableContainer = tbody.closest('.table-responsive');
+    if (tableContainer) {
+        tableContainer.style.maxHeight = '400px';
+        tableContainer.style.overflowY = 'auto';
+    }
+}
+
+// Update completed transactions table
+function updateCompletedTransactionsTable(transactions) {
+    const tbody = document.getElementById('completedTransactionsTable');
+    
+    if (transactions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                    <i class="fas fa-check-circle fa-2x mb-3 d-block"></i>
+                    No completed transactions
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Create table rows with proper structure for scrollable table
+    tbody.innerHTML = transactions.map(transaction => {
+        const statusBadge = transaction.status === 'success' 
+            ? `<span class="badge bg-success"><i class="fas fa-check me-1"></i>${transaction.status}</span>`
+            : transaction.status === 'failure'
+            ? `<span class="badge bg-danger"><i class="fas fa-times me-1"></i>${transaction.status}</span>`
+            : `<span class="badge bg-warning">${transaction.status}</span>`;
+            
+        const callbackBadge = transaction.callback_received
+            ? `<span class="badge bg-success"><i class="fas fa-check me-1"></i>Yes</span>`
+            : `<span class="badge bg-secondary"><i class="fas fa-times me-1"></i>No</span>`;
+            
+        return `
+            <tr>
+                <td>${transaction.order_id}</td>
+                <td>$${transaction.amount}</td>
+                <td><span class="badge bg-info">${transaction.payment_instrument.type}</span></td>
+                <td><span class="badge bg-secondary">${transaction.selected_gateway}</span></td>
+                <td>${statusBadge}</td>
+                <td>${callbackBadge}</td>
+                <td>${new Date(transaction.updated_at).toLocaleString()}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    // Ensure the table container maintains scrollable behavior
+    const tableContainer = tbody.closest('.table-responsive');
+    if (tableContainer) {
+        tableContainer.style.maxHeight = '400px';
+        tableContainer.style.overflowY = 'auto';
+    }
+}
+
+// Update gateway cards
+function updateGatewayCards(gateways) {
+    // Find the gateway cards container - it's the first card-body with a row
+    const gatewayCardsContainer = document.querySelector('.card-body .row');
+    
+    if (!gatewayCardsContainer) {
+        console.error('Gateway cards container not found');
+        return;
+    }
+    
+    const gatewayCardsHTML = Object.entries(gateways).map(([gatewayName, gateway]) => {
+        const isHealthy = gateway.is_healthy;
+        const healthClass = isHealthy ? 'gateway-healthy' : 'gateway-unhealthy';
+        const statusBadgeClass = isHealthy ? 'bg-success' : 'bg-danger';
+        const statusIcon = isHealthy ? 'fas fa-check-circle' : 'fas fa-times-circle';
+        const statusText = isHealthy ? 'Healthy' : 'Unhealthy';
+        const successRatePercentage = Math.round(gateway.success_rate * 100);
+        
+        return `
+            <div class="col-md-4 mb-3">
+                <div class="card gateway-card ${healthClass}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-credit-card me-2"></i>
+                                ${gatewayName}
+                            </h5>
+                            <span class="badge ${statusBadgeClass} status-badge">
+                                <i class="${statusIcon} me-1"></i>${statusText}
+                            </span>
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-number">${gateway.weight}%</div>
+                                <div class="stat-label">Weight</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${successRatePercentage}%</div>
+                                <div class="stat-label">Success Rate</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${gateway.total_requests}</div>
+                                <div class="stat-label">Total Requests</div>
+                            </div>
+                        </div>
+                        
+                        ${gateway.disabled_until ? `
+                        <div class="alert alert-warning mt-2 mb-0">
+                            <small>
+                                <i class="fas fa-clock me-1"></i>
+                                Disabled until: ${new Date(gateway.disabled_until).toLocaleString()}
+                            </small>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    gatewayCardsContainer.innerHTML = gatewayCardsHTML;
+}
+
+// Auto-refresh tables every 5 seconds
+setInterval(refreshTables, 5000);
+
+// Initialize scrollable tables
+function initializeScrollableTables() {
+    const tableContainers = document.querySelectorAll('.table-responsive');
+    tableContainers.forEach(container => {
+        container.style.maxHeight = '400px';
+        container.style.overflowY = 'auto';
+    });
+}
+
+// Initial load
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize scrollable tables
+    initializeScrollableTables();
+    
+    // Initial refresh of all data
+    refreshTables();
+    
+    // Add event delegation for callback buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('callback-btn') || e.target.closest('.callback-btn')) {
+            const button = e.target.classList.contains('callback-btn') ? e.target : e.target.closest('.callback-btn');
+            const orderId = button.getAttribute('data-order-id');
+            const status = button.getAttribute('data-status');
+            const gateway = button.getAttribute('data-gateway');
+            
+            triggerCallback(orderId, status, gateway);
+        }
+    });
+});
+</script> 
