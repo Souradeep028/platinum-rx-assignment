@@ -1,0 +1,445 @@
+# Payment Service
+
+A Node.js and Express-based payment service with dynamic routing across multiple payment gateways. This service implements intelligent gateway selection based on load distribution, health monitoring, and fault tolerance.
+
+## Project Structure
+
+```
+platinumrx-takehome/
+├── src/
+│   ├── app.js                 # Express application setup
+│   ├── server.js              # Server startup and graceful shutdown
+│   ├── controllers/
+│   │   ├── healthController.js
+│   │   └── transactionController.js
+│   ├── middleware/
+│   │   ├── errorHandler.js
+│   │   └── validation.js
+│   ├── routes/
+│   │   ├── healthRoutes.js
+│   │   ├── gatewayRoutes.js
+│   │   └── transactionRoutes.js
+│   ├── services/
+│   │   ├── gatewayService.js
+│   │   └── transactionService.js
+│   └── utils/
+│       └── logger.js
+├── tests/
+├── examples/
+├── logs/
+├── Dockerfile
+├── docker-compose.yml
+└── package.json
+```
+
+## Features
+
+- **Dynamic Gateway Routing**: Intelligent routing across multiple payment gateways (Razorpay, Stripe, PayPal)
+- **Health Monitoring**: Real-time gateway health tracking and automatic failover
+- **Comprehensive Validation**: Input validation and business rule enforcement
+- **Graceful Shutdown**: Proper signal handling for clean server termination
+- **Detailed Logging**: Structured logging with Winston
+- **Docker Support**: Containerized deployment with health checks
+
+## Architecture
+
+The project follows a clean, modular architecture with separation of concerns:
+
+### Core Components
+
+- **Controllers** (`src/controllers/`): Handle HTTP requests/responses and coordinate between routes and services
+- **Services** (`src/services/`): Contain core business logic and data management
+- **Routes** (`src/routes/`): Define API endpoints and apply middleware
+- **Middleware** (`src/middleware/`): Handle validation, authentication, and request processing
+- **Gateway Service**: Manages payment gateways, health monitoring, and routing logic
+- **Transaction Service**: Handles transaction creation, updates, and validation
+- **Logging**: Winston-based structured logging for monitoring and debugging
+
+### Controller-Service Pattern
+
+The application uses a **Controller-Service** pattern for clean separation of concerns:
+
+- **Controllers**: Handle HTTP-specific logic, request/response formatting, and coordinate between routes and services
+- **Services**: Contain pure business logic, data management, and domain-specific operations
+- **Routes**: Define API endpoints and apply middleware (validation, authentication, etc.)
+- **Middleware**: Handle cross-cutting concerns like validation, logging, and error handling
+
+### Gateway Configuration
+
+The service supports three payment gateways with configurable weights:
+
+- **Razorpay**: 40% weight
+- **Stripe**: 35% weight  
+- **PayPal**: 25% weight
+
+### Health Monitoring
+
+- Tracks success/failure rates for each gateway
+- Automatically disables gateways with < 90% success rate (after 10+ requests)
+- Re-enables gateways after 30 minutes of being disabled
+- Provides fallback to healthy gateways when all are unhealthy
+
+## API Endpoints
+
+### 1. Initiate Transaction
+
+**POST** `/transactions/initiate`
+
+Creates a new payment transaction with intelligent gateway selection.
+
+**Request Body:**
+```json
+{
+  "order_id": "ORD123",
+  "amount": 499.0,
+  "payment_instrument": {
+    "type": "card",
+    "card_number": "4111111111111111",
+    "expiry": "12/25",
+    "cvv": "123",
+    "card_holder_name": "John Doe"
+  }
+}
+```
+
+**Supported Payment Types:**
+- **Card**: Requires `card_number`, `expiry` (MM/YY format), optional `cvv`, `card_holder_name`
+- **UPI**: Requires `upi_id` (format: user@bank)
+- **Netbanking**: Requires `bank_code` (3-10 characters)
+
+**Response:**
+```json
+{
+  "order_id": "ORD123",
+  "amount": 499.0,
+  "selected_gateway": "razorpay",
+  "status": "pending",
+  "created_at": "2024-01-15T10:30:00.000Z"
+}
+```
+
+### 2. Callback
+
+**POST** `/transactions/callback`
+
+Updates transaction status and gateway health statistics.
+
+**Request Body:**
+```json
+{
+  "order_id": "ORD123",
+  "status": "success",
+  "gateway": "razorpay",
+  "reason": "Payment successful"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Transaction status updated successfully",
+  "order_id": "ORD123",
+  "status": "success",
+  "gateway": "razorpay",
+  "updated_at": "2024-01-15T10:35:00.000Z"
+}
+```
+
+### 3. Health Check
+
+**GET** `/health`
+
+Returns basic service health status.
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "service": "payment-service",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+### 4. Gateway Health Check
+
+**GET** `/gateway/health`
+
+Returns detailed gateway health and transaction statistics.
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "service": "payment-service",
+  "timestamp": "2025-08-01T10:30:00.000Z",
+  "uptime": 3600.5,
+  "memory": {
+    "rss": 52428800,
+    "heapTotal": 20971520,
+    "heapUsed": 10485760,
+    "external": 1024000
+  },
+  "version": "1.0.0",
+  "gateways": {
+    "razorpay": {
+      "weight": 40,
+      "is_healthy": true,
+      "success_rate": 0.95,
+      "total_requests": 100,
+      "disabled_until": null
+    },
+    "stripe": {
+      "weight": 35,
+      "is_healthy": true,
+      "success_rate": 0.92,
+      "total_requests": 85,
+      "disabled_until": null
+    },
+    "paypal": {
+      "weight": 25,
+      "is_healthy": true,
+      "success_rate": 0.88,
+      "total_requests": 60,
+      "disabled_until": null
+    }
+  },
+  "transactions": {
+    "total_transactions": 245,
+    "by_status": {
+      "pending": 10,
+      "success": 220,
+      "failure": 15
+    },
+    "by_gateway": {
+      "razorpay": {
+        "total": 100,
+        "successful": 95,
+        "failed": 5,
+        "pending": 0
+      }
+    },
+    "recent_transactions": [...]
+  }
+}
+```
+
+### 5. Statistics (Optional)
+
+**GET** `/transactions`
+
+Returns transaction and gateway statistics.
+
+**GET** `/transactions/:transactionId`
+
+Returns specific transaction details.
+
+## Installation & Setup
+
+### Prerequisites
+
+- Node.js 18+ 
+- Docker (optional, for containerized deployment)
+
+### Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd payment-service
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+4. **Run tests**
+   ```bash
+   npm test
+   ```
+
+### Docker Deployment
+
+1. **Build and run with Docker Compose**
+   ```bash
+   docker-compose up --build
+   ```
+
+2. **Or build and run manually**
+   ```bash
+   docker build -t payment-service .
+   docker run -p 3000:3000 payment-service
+   ```
+
+## Configuration
+
+### Environment Variables
+
+- `PORT`: Server port (default: 3000)
+- `NODE_ENV`: Environment (development/production)
+
+### Gateway Configuration
+
+Gateway weights and health thresholds can be modified in `src/services/gatewayService.js`:
+
+```javascript
+const gatewayConfigs = [
+  { name: 'razorpay', weight: 40, success_threshold: 0.9 },
+  { name: 'stripe', weight: 35, success_threshold: 0.9 },
+  { name: 'paypal', weight: 25, success_threshold: 0.9 }
+];
+```
+
+## Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm test -- --coverage
+```
+
+### Test Structure
+
+- **Unit Tests**: `tests/transactionService.test.js`, `tests/gatewayService.test.js`
+- **Integration Tests**: `tests/integration.test.js`
+- **Validation Tests**: `tests/validation.test.js`
+- **Business Validation Tests**: `tests/businessValidation.test.js`
+- **Coverage**: HTML reports generated in `coverage/` directory
+
+### Test Coverage
+
+The test suite covers:
+- **Unit Tests**: Service layer functionality and business logic
+- **Integration Tests**: End-to-end API functionality
+- **Validation Tests**: Input validation and sanitization
+- **Business Validation Tests**: Business rule validation (duplicate orders, callback validation)
+
+## Logging
+
+The service uses Winston for structured logging with the following features:
+
+- **Console Output**: Colored logs for development
+- **File Logging**: Separate error and combined log files
+- **Structured Data**: JSON format with timestamps and metadata
+- **Log Levels**: Error, warn, info, debug
+
+Log files are stored in the `logs/` directory:
+- `logs/error.log`: Error-level messages
+- `logs/combined.log`: All log messages
+
+## Monitoring
+
+### Health Monitoring
+
+- Automatic gateway health tracking
+- Success rate calculations
+- Gateway disable/enable based on performance
+- Detailed logging of health state changes
+
+### Statistics
+
+The service provides comprehensive statistics via the `/transactions` endpoint:
+
+- Transaction counts by status
+- Gateway performance metrics
+- Recent transaction history
+- Health status of all gateways
+
+## Error Handling
+
+The service implements comprehensive error handling:
+
+- **Validation Errors**: 400 Bad Request for invalid input with detailed field-level errors
+- **Not Found**: 404 for missing transactions
+- **Conflicts**: 409 for duplicate order IDs and already processed transactions
+- **Gateway Mismatch**: 400 Bad Request for callback gateway mismatch
+- **Server Errors**: 500 for internal errors
+- **Structured Responses**: Consistent error format with timestamps and field details
+
+### Validation Error Response Format:
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    {
+      "field": "payment_instrument.expiry",
+      "message": "expiry must be in MM/YY format",
+      "value": "invalid-format"
+    }
+  ],
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+### Business Validation Error Responses:
+
+#### Duplicate Order ID (409 Conflict):
+```json
+{
+  "error": "Transaction already exists for this order_id",
+  "order_id": "ORD123",
+  "status": "pending",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+#### Already Processed Transaction (409 Conflict):
+```json
+{
+  "error": "Transaction has already been processed",
+  "order_id": "ORD123",
+  "current_status": "success",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+#### Gateway Mismatch (400 Bad Request):
+```json
+{
+  "error": "Gateway mismatch",
+  "order_id": "ORD123",
+  "expected_gateway": "razorpay",
+  "received_gateway": "stripe",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+## Performance
+
+- **In-Memory Storage**: Fast transaction and state management
+- **Async Processing**: Non-blocking payment simulation
+- **Health Checks**: Efficient gateway monitoring
+- **Weighted Routing**: Intelligent load distribution
+
+## Security
+
+- **Input Validation**: Comprehensive request validation using express-validator
+- **Data Sanitization**: Automatic input sanitization and escaping
+- **Helmet**: Security headers middleware
+- **CORS**: Configurable cross-origin resource sharing
+- **Error Sanitization**: Safe error responses
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Run the test suite
+6. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details. 
