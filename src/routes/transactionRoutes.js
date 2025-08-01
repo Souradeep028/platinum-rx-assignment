@@ -28,21 +28,6 @@ router.post('/callback',
   transactionController.handleCallback
 );
 
-router.get('/', 
-  validateMethod(['GET']),
-  transactionController.getTransactions
-);
-
-router.get('/:orderId', 
-  validateMethod(['GET']),
-  transactionController.getTransactionById
-);
-
-router.get('/order/:orderId', 
-  validateMethod(['GET']),
-  transactionController.getTransactionByOrderId
-);
-
 router.post('/bulk-success',
   validateMethod(['POST']),
   sanitizeInput,
@@ -56,5 +41,7 @@ router.post('/bulk-failure',
   handleValidationErrors,
   transactionController.bulkFailure
 );
+
+router.get('/', validateMethod(['GET']), transactionController.getTransactions);
 
 module.exports = router; 

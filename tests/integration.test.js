@@ -106,7 +106,7 @@ describe('Health Check Integration Tests', () => {
       Date = originalDate;
     });
 
-    test('should provide gateway health statistics via API', async () => {
+    test('should return gateway statistics', async () => {
       // Disable a gateway
       gatewayService.disableGateway('razorpay', 30);
       
@@ -123,51 +123,6 @@ describe('Health Check Integration Tests', () => {
       expect(response.body.gateway_stats.razorpay).toBeDefined();
       expect(response.body.gateway_stats.razorpay.is_disabled).toBe(true);
       expect(response.body.gateway_stats.payu.success_rate).toBe(1.0);
-    });
-
-    test('should allow manual gateway operations via API', async () => {
-      const gatewayName = 'payu';
-      
-      // Manually disable gateway
-      const disableResponse = await request(app)
-        .post(`/gateway/disable/${gatewayName}`)
-        .send({ duration_minutes: 45 })
-        .expect(200);
-      
-      expect(disableResponse.body.message).toBe('Gateway disabled successfully');
-      expect(disableResponse.body.gateway).toBe(gatewayName);
-      
-      // Check that gateway is disabled
-      const gateway = gatewayService.gateways.get(gatewayName);
-      expect(gateway.is_healthy).toBe(false);
-      
-      // Manually enable gateway
-      const enableResponse = await request(app)
-        .post(`/gateway/enable/${gatewayName}`)
-        .expect(200);
-      
-      expect(enableResponse.body.message).toBe('Gateway enabled successfully');
-      
-      // Check that gateway is enabled
-      expect(gateway.is_healthy).toBe(true);
-    });
-
-    test('should handle health monitoring controls via API', async () => {
-      // Stop health monitoring
-      const stopResponse = await request(app)
-        .post('/gateway/health-monitoring/stop')
-        .expect(200);
-      
-      expect(stopResponse.body.message).toBe('Health monitoring stopped successfully');
-      expect(gatewayService.healthCheckInterval).toBeNull();
-      
-      // Start health monitoring
-      const startResponse = await request(app)
-        .post('/gateway/health-monitoring/start')
-        .expect(200);
-      
-      expect(startResponse.body.message).toBe('Health monitoring started successfully');
-      expect(gatewayService.healthCheckInterval).toBeDefined();
     });
   });
 

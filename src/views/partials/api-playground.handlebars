@@ -143,11 +143,15 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-list me-2"></i>
                     Gateway Selection Logs
                 </h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="clearGatewayLogsBtn" onclick="clearGatewayLogs()">
+                    <i class="fas fa-trash me-1"></i>
+                    Clear
+                </button>
             </div>
             <div class="card-body">
                 <div id="gatewayLogs" class="log-container">

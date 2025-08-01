@@ -83,44 +83,32 @@ class TransactionController {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const { order_id, status, gateway, reason } = req.body;
 
-    try {
-      const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
-        order_id,
-        status,
-        gateway,
-        reason,
-        requestLogger
-      );
+    const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
+      order_id,
+      status,
+      gateway,
+      reason,
+      requestLogger
+    );
 
-      const success = status === 'success';
-      gatewayService.updateHealthStats(gateway, success, requestLogger);
+    const success = status === 'success';
+    gatewayService.updateHealthStats(gateway, success, requestLogger);
 
-      requestLogger.info('Transaction status updated', {
-        order_id: updatedTransaction.order_id,
-        status: updatedTransaction.status,
-        gateway: updatedTransaction.callback_data.gateway,
-        reason: updatedTransaction.callback_data.reason
-      });
+    requestLogger.info('Transaction status updated', {
+      order_id: updatedTransaction.order_id,
+      status: updatedTransaction.status,
+      gateway: updatedTransaction.callback_data.gateway,
+      reason: updatedTransaction.callback_data.reason
+    });
 
-      res.status(200).json({
-        message: 'Transaction status updated successfully',
-        order_id: updatedTransaction.order_id,
-        status: updatedTransaction.status,
-        gateway: gateway,
-        updated_at: updatedTransaction.updated_at,
-        request_id: req.requestId
-      });
-    } catch (error) {
-      if (error.name === 'NotFoundError') {
-        requestLogger.warn('Transaction not found for callback', { order_id: order_id });
-        return res.status(404).json({
-          error: 'Transaction not found',
-          timestamp: new Date().toISOString(),
-          request_id: req.requestId
-        });
-      }
-      throw error;
-    }
+    res.status(200).json({
+      message: 'Transaction status updated successfully',
+      order_id: updatedTransaction.order_id,
+      status: updatedTransaction.status,
+      gateway: gateway,
+      updated_at: updatedTransaction.updated_at,
+      request_id: req.requestId
+    });
   }
 
   async getTransactions(req, res, next) {
@@ -138,186 +126,110 @@ class TransactionController {
     });
   }
 
-  async getTransactionById(req, res, next) {
-    const requestLogger = logger.createRequestLogger(req.requestId);
-    const { orderId } = req.params;
-    const transaction = transactionService.getTransaction(orderId);
-
-    if (!transaction) {
-      requestLogger.warn('Transaction not found', { order_id: orderId });
-      return res.status(404).json({
-        error: 'Transaction not found',
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
-    }
-
-    requestLogger.info('Transaction retrieved', { order_id: orderId });
-    res.status(200).json({
-      ...transaction,
-      request_id: req.requestId
-    });
-  }
-
-  async getTransactionByOrderId(req, res, next) {
-    const requestLogger = logger.createRequestLogger(req.requestId);
-    const { orderId } = req.params;
-    const transaction = transactionService.getTransactionByOrderId(orderId);
-
-    if (!transaction) {
-      requestLogger.warn('Transaction not found by order ID', { order_id: orderId });
-      return res.status(404).json({
-        error: 'Transaction not found',
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
-    }
-
-    requestLogger.info('Transaction retrieved by order ID', { order_id: orderId });
-    res.status(200).json({
-      ...transaction,
-      request_id: req.requestId
-    });
-  }
-
   async bulkSuccess(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     
-    try {
-      const pendingTransactions = transactionService.getPendingTransactions();
-      
-      if (pendingTransactions.length === 0) {
-        requestLogger.info('No pending transactions to process for bulk success');
-        return res.status(200).json({
-          message: 'No pending transactions to process',
-          processed_count: 0,
-          request_id: req.requestId
-        });
-      }
-
-      const results = [];
-      
-      for (const transaction of pendingTransactions) {
-        try {
-          const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
-            transaction.order_id,
-            'success',
-            transaction.selected_gateway,
-            'Bulk success operation',
-            requestLogger
-          );
-
-          gatewayService.updateHealthStats(transaction.selected_gateway, true, requestLogger);
-          
-          results.push({
-            order_id: transaction.order_id,
-            status: 'success',
-            gateway: transaction.selected_gateway
-          });
-          
-          requestLogger.info('Bulk success processed', {
-            order_id: transaction.order_id,
-            gateway: transaction.selected_gateway
-          });
-        } catch (error) {
-          requestLogger.error('Failed to process transaction in bulk success', {
-            order_id: transaction.order_id,
-            error: error.message
-          });
-          
-          results.push({
-            order_id: transaction.order_id,
-            status: 'error',
-            error: error.message
-          });
-        }
-      }
-
-      requestLogger.info('Bulk success operation completed', {
-        total_transactions: pendingTransactions.length,
-        successful: results.filter(r => r.status === 'success').length,
-        failed: results.filter(r => r.status === 'error').length
-      });
-
-      res.status(200).json({
-        message: 'Bulk success operation completed',
-        processed_count: pendingTransactions.length,
-        results: results,
+    const pendingTransactions = transactionService.getPendingTransactions();
+    
+    if (pendingTransactions.length === 0) {
+      requestLogger.info('No pending transactions to process for bulk success');
+      return res.status(200).json({
+        message: 'No pending transactions to process',
+        processed_count: 0,
         request_id: req.requestId
       });
-    } catch (error) {
-      throw error;
     }
+
+    const results = [];
+    
+    for (const transaction of pendingTransactions) {
+      const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
+        transaction.order_id,
+        'success',
+        transaction.selected_gateway,
+        'Bulk success operation',
+        requestLogger
+      );
+
+      gatewayService.updateHealthStats(transaction.selected_gateway, true, requestLogger);
+      
+      results.push({
+        order_id: transaction.order_id,
+        status: 'success',
+        gateway: transaction.selected_gateway
+      });
+      
+      requestLogger.info('Bulk success processed', {
+        order_id: transaction.order_id,
+        gateway: transaction.selected_gateway
+      });
+    }
+
+    requestLogger.info('Bulk success operation completed', {
+      total_transactions: pendingTransactions.length,
+      successful: results.filter(r => r.status === 'success').length,
+      failed: results.filter(r => r.status === 'error').length
+    });
+
+    res.status(200).json({
+      message: 'Bulk success operation completed',
+      processed_count: pendingTransactions.length,
+      results: results,
+      request_id: req.requestId
+    });
   }
 
   async bulkFailure(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     
-    try {
-      const pendingTransactions = transactionService.getPendingTransactions();
-      
-      if (pendingTransactions.length === 0) {
-        requestLogger.info('No pending transactions to process for bulk failure');
-        return res.status(200).json({
-          message: 'No pending transactions to process',
-          processed_count: 0,
-          request_id: req.requestId
-        });
-      }
-
-      const results = [];
-      
-      for (const transaction of pendingTransactions) {
-        try {
-          const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
-            transaction.order_id,
-            'failure',
-            transaction.selected_gateway,
-            'Bulk failure operation',
-            requestLogger
-          );
-
-          gatewayService.updateHealthStats(transaction.selected_gateway, false, requestLogger);
-          
-          results.push({
-            order_id: transaction.order_id,
-            status: 'failure',
-            gateway: transaction.selected_gateway
-          });
-          
-          requestLogger.info('Bulk failure processed', {
-            order_id: transaction.order_id,
-            gateway: transaction.selected_gateway
-          });
-        } catch (error) {
-          requestLogger.error('Failed to process transaction in bulk failure', {
-            order_id: transaction.order_id,
-            error: error.message
-          });
-          
-          results.push({
-            order_id: transaction.order_id,
-            status: 'error',
-            error: error.message
-          });
-        }
-      }
-
-      requestLogger.info('Bulk failure operation completed', {
-        total_transactions: pendingTransactions.length,
-        successful: results.filter(r => r.status === 'failure').length,
-        failed: results.filter(r => r.status === 'error').length
-      });
-
-      res.status(200).json({
-        message: 'Bulk failure operation completed',
-        processed_count: pendingTransactions.length,
-        results: results,
+    const pendingTransactions = transactionService.getPendingTransactions();
+    
+    if (pendingTransactions.length === 0) {
+      requestLogger.info('No pending transactions to process for bulk failure');
+      return res.status(200).json({
+        message: 'No pending transactions to process',
+        processed_count: 0,
         request_id: req.requestId
       });
-    } catch (error) {
-      throw error;
     }
+
+    const results = [];
+    
+    for (const transaction of pendingTransactions) {
+      const updatedTransaction = transactionService.updateTransactionStatusByOrderId(
+        transaction.order_id,
+        'failure',
+        transaction.selected_gateway,
+        'Bulk failure operation',
+        requestLogger
+      );
+
+      gatewayService.updateHealthStats(transaction.selected_gateway, false, requestLogger);
+      
+      results.push({
+        order_id: transaction.order_id,
+        status: 'failure',
+        gateway: transaction.selected_gateway
+      });
+      
+      requestLogger.info('Bulk failure processed', {
+        order_id: transaction.order_id,
+        gateway: transaction.selected_gateway
+      });
+    }
+
+    requestLogger.info('Bulk failure operation completed', {
+      total_transactions: pendingTransactions.length,
+      successful: results.filter(r => r.status === 'failure').length,
+      failed: results.filter(r => r.status === 'error').length
+    });
+
+    res.status(200).json({
+      message: 'Bulk failure operation completed',
+      processed_count: pendingTransactions.length,
+      results: results,
+      request_id: req.requestId
+    });
   }
 }
 

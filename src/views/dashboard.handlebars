@@ -290,10 +290,29 @@ document.getElementById('transactionForm').addEventListener('submit', async func
     } catch (error) {
         console.error('API request failed:', error);
         console.error('Error response:', error.response?.data);
-        displayResponse({
-            error: error.response?.data?.error || 'Failed to initiate transaction',
-            details: error.response?.data || error.message
-        });
+        
+        // Handle specific error cases
+        let errorMessage = 'Failed to initiate transaction';
+        let errorDetails = error.response?.data || error.message;
+        
+        if (error.response?.status === 503 && error.response?.data?.error === 'All gateways are unhealthy') {
+            errorMessage = 'All payment gateways are currently unavailable';
+            addGatewayLog('ERROR: All gateways are unhealthy - no payment gateways available');
+            
+            // Show a more user-friendly message
+            displayResponse({
+                error: errorMessage,
+                message: 'No payment gateways are currently available. Please try again later.',
+                gateway_stats: error.response?.data?.gateway_stats,
+                order_id: error.response?.data?.order_id,
+                request_id: error.response?.data?.request_id
+            });
+        } else {
+            displayResponse({
+                error: errorMessage,
+                details: errorDetails
+            });
+        }
         
         // Ensure placeholder is hidden even for errors
         const responsePlaceholder = document.getElementById('responsePlaceholder');
@@ -428,8 +447,14 @@ document.getElementById('bulkTransactionForm').addEventListener('submit', async 
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<i class="fas fa-rocket me-2"></i>Generate Bulk Transactions';
     
-    // Show simple completion alert
-    alert(`Bulk transaction generation completed!`);
+    // Show appropriate completion alert based on results
+    if (results.failed === 0) {
+        alert(`✅ Bulk transaction generation completed successfully! All ${results.successful} transactions were successful.`);
+    } else if (results.successful === 0) {
+        alert(`❌ Bulk transaction generation failed! All ${results.failed} transactions failed. Please check gateway health and try again.`);
+    } else {
+        alert(`⚠️ Bulk transaction generation completed with mixed results: ${results.successful} successful, ${results.failed} failed out of ${results.total} total.`);
+    }
     
     // Hide the results div
     resultsDiv.style.display = 'none';
@@ -551,12 +576,20 @@ function addGatewayLog(message) {
     // Check for specific patterns to avoid false positives
     const isBulkCompletion = message.toLowerCase().includes('bulk transaction generation completed');
     const hasFailedCount = message.toLowerCase().includes('failed') && message.toLowerCase().includes('0 failed');
+    
+    // Check if bulk completion had any successful transactions
+    const bulkCompletionWithFailures = isBulkCompletion && 
+                                      message.toLowerCase().includes('0 successful') && 
+                                      message.toLowerCase().includes('failed');
+    
     const isActualError = message.toLowerCase().includes('error') || 
-                          (message.toLowerCase().includes('failed') && !hasFailedCount && !isBulkCompletion);
+                          (message.toLowerCase().includes('failed') && !hasFailedCount && !isBulkCompletion) ||
+                          message.toLowerCase().includes('unhealthy') ||
+                          bulkCompletionWithFailures;
     
     if (isActualError) {
         formattedMessage = `ERROR: ${message}`;
-    } else if (message.toLowerCase().includes('success') || message.toLowerCase().includes('healthy') || isBulkCompletion) {
+    } else if (message.toLowerCase().includes('success') || message.toLowerCase().includes('healthy') || (isBulkCompletion && !bulkCompletionWithFailures)) {
         formattedMessage = `SUCCESS: ${message}`;
     } else if (message.toLowerCase().includes('callback')) {
         formattedMessage = `CALLBACK: ${message}`;
@@ -598,14 +631,21 @@ function updateGatewayLogs() {
         const message = log.message;
         
         // More precise error detection
+        const isBulkCompletion = message.toLowerCase().includes('bulk transaction generation completed');
+        const bulkCompletionWithFailures = isBulkCompletion && 
+                                          message.toLowerCase().includes('0 successful') && 
+                                          message.toLowerCase().includes('failed');
+        
         const isError = message.toLowerCase().includes('error') || 
                        (message.toLowerCase().includes('failed') && 
                         !message.toLowerCase().includes('0 failed') && 
-                        !message.toLowerCase().includes('bulk transaction generation completed'));
+                        !isBulkCompletion) ||
+                       message.toLowerCase().includes('unhealthy') ||
+                       bulkCompletionWithFailures;
         
         const isSuccess = message.toLowerCase().includes('success') || 
                          message.toLowerCase().includes('healthy') ||
-                         message.toLowerCase().includes('bulk transaction generation completed');
+                         (isBulkCompletion && !bulkCompletionWithFailures);
         
         let color = '#e0e0e0'; // default
         if (isError) color = '#ef4444'; // red for errors
@@ -618,6 +658,13 @@ function updateGatewayLogs() {
             </div>
         `;
     }).join('');
+}
+
+// Clear gateway logs
+function clearGatewayLogs() {
+    gatewayLogs = [];
+    updateGatewayLogs();
+    console.log('Gateway logs cleared');
 }
 
 // Trigger callback for pending transaction
@@ -744,12 +791,28 @@ async function checkGatewayHealth() {
             const gatewayHealth = response.data.gateways;
             addGatewayLog(`Gateway health check completed - ${Object.keys(gatewayHealth).length} gateways monitored`);
             
+            // Track unhealthy gateways for alert
+            const unhealthyGateways = [];
+            
             // Log individual gateway status
             Object.entries(gatewayHealth).forEach(([gatewayName, gateway]) => {
                 const status = gateway.is_healthy ? 'healthy' : 'unhealthy';
                 const successRate = gateway.success_rate ? ` (${(gateway.success_rate * 100).toFixed(1)}% success)` : '';
                 addGatewayLog(`${gatewayName}: ${status}${successRate}`);
+                
+                if (!gateway.is_healthy) {
+                    unhealthyGateways.push(gatewayName);
+                }
             });
+            
+            // Show alert for unhealthy gateways
+            if (unhealthyGateways.length > 0) {
+                if (unhealthyGateways.length === Object.keys(gatewayHealth).length) {
+                    alert(`❌ All gateways are unhealthy: ${unhealthyGateways.join(', ')}. Payment processing may be affected.`);
+                } else {
+                    alert(`⚠️ Some gateways are unhealthy: ${unhealthyGateways.join(', ')}. Payment processing may be degraded.`);
+                }
+            }
             
             // Update gateway cards with fresh data
             updateGatewayCards(gatewayHealth);

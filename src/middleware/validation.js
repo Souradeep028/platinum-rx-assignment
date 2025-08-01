@@ -169,100 +169,92 @@ const handleValidationErrors = (req, res, next) => {
 const validateBusinessRules = {
   // Check for duplicate order_id
   checkDuplicateOrderId: async (req, res, next) => {
-    try {
-      const { order_id } = req.body;
-      const transactionService = require('../services/transactionService');
-      
-      const existingTransaction = transactionService.getTransactionByOrderId(order_id);
-      if (existingTransaction) {
-        const requestLogger = logger.createRequestLogger(req.requestId);
-        requestLogger.warn('Duplicate order ID attempted', {
-          order_id: order_id,
-          existing_order_id: existingTransaction.order_id,
-          method: req.method,
-          url: req.url
-        });
+    const { order_id } = req.body;
+    const transactionService = require('../services/transactionService');
+    
+    const existingTransaction = transactionService.getTransactionByOrderId(order_id);
+    if (existingTransaction) {
+      const requestLogger = logger.createRequestLogger(req.requestId);
+      requestLogger.warn('Duplicate order ID attempted', {
+        order_id: order_id,
+        existing_order_id: existingTransaction.order_id,
+        method: req.method,
+        url: req.url
+      });
 
-        return res.status(409).json({
-          error: 'Transaction already exists for this order_id',
-          order_id: existingTransaction.order_id,
-          status: existingTransaction.status,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      next();
-    } catch (error) {
-      next(error);
+      return res.status(409).json({
+        error: 'Transaction already exists for this order_id',
+        order_id: existingTransaction.order_id,
+        status: existingTransaction.status,
+        timestamp: new Date().toISOString()
+      });
     }
+    
+    next();
   },
 
   // Check for callback validation (already processed or gateway mismatch)
   validateCallback: async (req, res, next) => {
-    try {
-      const { order_id, gateway } = req.body;
-      const transactionService = require('../services/transactionService');
-      
-      // Check if transaction exists
-      const transaction = transactionService.getTransactionByOrderId(order_id);
-      if (!transaction) {
-        const requestLogger = logger.createRequestLogger(req.requestId);
-        requestLogger.warn('Callback for non-existent transaction', {
-          order_id: order_id,
-          gateway: gateway,
-          method: req.method,
-          url: req.url
-        });
+    const { order_id, gateway } = req.body;
+    const transactionService = require('../services/transactionService');
+    
+    // Check if transaction exists
+    const transaction = transactionService.getTransactionByOrderId(order_id);
+    if (!transaction) {
+      const requestLogger = logger.createRequestLogger(req.requestId);
+      requestLogger.warn('Callback for non-existent transaction', {
+        order_id: order_id,
+        gateway: gateway,
+        method: req.method,
+        url: req.url
+      });
 
-        return res.status(404).json({
-          error: 'Transaction not found',
-          timestamp: new Date().toISOString(),
-          request_id: req.requestId
-        });
-      }
-
-      // Check if transaction is already processed
-      if (transaction.callback_received) {
-        const requestLogger = logger.createRequestLogger(req.requestId);
-        requestLogger.warn('Callback for already processed transaction', {
-          order_id: order_id,
-          current_status: transaction.status,
-          method: req.method,
-          url: req.url
-        });
-
-        return res.status(409).json({
-          error: 'Transaction has already been processed',
-          order_id: transaction.order_id,
-          current_status: transaction.status,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // Check gateway mismatch
-      if (transaction.selected_gateway !== gateway) {
-        const requestLogger = logger.createRequestLogger(req.requestId);
-        requestLogger.warn('Gateway mismatch in callback', {
-          order_id: order_id,
-          expected_gateway: transaction.selected_gateway,
-          received_gateway: gateway,
-          method: req.method,
-          url: req.url
-        });
-
-        return res.status(400).json({
-          error: 'Gateway mismatch',
-          order_id: transaction.order_id,
-          expected_gateway: transaction.selected_gateway,
-          received_gateway: gateway,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      next();
-    } catch (error) {
-      next(error);
+      return res.status(404).json({
+        error: 'Transaction not found',
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId
+      });
     }
+
+    // Check if transaction is already processed
+    if (transaction.callback_received) {
+      const requestLogger = logger.createRequestLogger(req.requestId);
+      requestLogger.warn('Callback for already processed transaction', {
+        order_id: order_id,
+        current_status: transaction.status,
+        method: req.method,
+        url: req.url
+      });
+
+      return res.status(409).json({
+        error: 'Transaction has already been processed',
+        order_id: transaction.order_id,
+        current_status: transaction.status,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check gateway mismatch
+    if (transaction.selected_gateway !== gateway) {
+      const requestLogger = logger.createRequestLogger(req.requestId);
+      requestLogger.warn('Gateway mismatch in callback', {
+        order_id: order_id,
+        expected_gateway: transaction.selected_gateway,
+        received_gateway: gateway,
+        method: req.method,
+        url: req.url
+      });
+
+      return res.status(400).json({
+        error: 'Gateway mismatch',
+        order_id: transaction.order_id,
+        expected_gateway: transaction.selected_gateway,
+        received_gateway: gateway,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    next();
   }
 };
 
