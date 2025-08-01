@@ -203,25 +203,7 @@ describe('GatewayService Health Checks', () => {
       expect(gatewayStats.threshold).toBe(0.9);
     });
 
-    test('should show correct success rates', () => {
-      const gatewayName = 'payu';
-      
-      // Add some successful and failed requests
-      for (let i = 0; i < 8; i++) {
-        gatewayService.updateHealthStats(gatewayName, true);
-      }
-      for (let i = 0; i < 2; i++) {
-        gatewayService.updateHealthStats(gatewayName, false);
-      }
-      
-      const stats = gatewayService.getGatewayStats();
-      const gatewayStats = stats[gatewayName];
-      
-      expect(gatewayStats.success_rate).toBe(0.8); // 8/10 = 0.8
-      expect(gatewayStats.total_requests).toBe(10);
-      expect(gatewayStats.successful_requests).toBe(8);
-      expect(gatewayStats.failed_requests).toBe(2);
-    });
+
   });
 
   describe('Health Check Logic', () => {

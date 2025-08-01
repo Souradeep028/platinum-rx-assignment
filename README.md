@@ -1,6 +1,6 @@
 # Payment Service
 
-A Node.js and Express-based payment service with dynamic routing across multiple payment gateways. This service implements intelligent gateway selection based on load distribution, health monitoring, and fault tolerance.
+A Node.js and Express-based payment service with dynamic routing across multiple payment gateways. This service implements intelligent gateway selection based on load distribution, health monitoring, and fault tolerance with advanced features like sliding window health monitoring, bulk operations, and dynamic gateway configuration management.
 
 DEMO LINK: https://platinum-rx-assignment-production.up.railway.app/
 
@@ -15,7 +15,7 @@ DEMO LINK: https://platinum-rx-assignment-production.up.railway.app/
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Souradeep028/platinum-rx-assignment
    cd payment-service
    ```
 
@@ -33,7 +33,7 @@ DEMO LINK: https://platinum-rx-assignment-production.up.railway.app/
 
 1. **Build and run with Docker Compose**
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
 
 2. **Or build and run manually**
@@ -76,13 +76,15 @@ The test suite covers:
 ## Features
 
 - **Dynamic Gateway Routing**: Intelligent routing across multiple payment gateways (Razorpay, payu, cashfree)
-- **Health Monitoring**: Real-time gateway health tracking and automatic failover
+- **Sliding Window Health Monitoring**: Real-time gateway health tracking with 30-minute sliding window
+- **Automatic Failover**: Disables unhealthy gateways and routes to healthy ones
+- **Bulk Operations**: Process multiple pending transactions with bulk success/failure operations
+- **Dynamic Gateway Configuration**: Runtime gateway weight and health threshold management
 - **Comprehensive Validation**: Input validation and business rule enforcement
 - **Graceful Shutdown**: Proper signal handling for clean server termination
-- **Detailed Logging**: Structured logging with Winston
+- **Detailed Logging**: Structured logging with Winston and request-specific logging
 - **Docker Support**: Containerized deployment with health checks
 - **Weighted Load Distribution**: Smart routing based on gateway weights and health
-- **Automatic Failover**: Disables unhealthy gateways and routes to healthy ones
 - **Transaction Management**: Complete transaction lifecycle management
 - **Real-time Statistics**: Comprehensive transaction and gateway performance metrics
 
@@ -95,11 +97,12 @@ The service implements an intelligent gateway selection algorithm with the follo
 - **payu**: 35% weight  
 - **cashfree**: 25% weight
 
-### Health Monitoring
-- Tracks success/failure rates for each gateway
-- Automatically disables gateways with < 90% success rate (after 10+ requests)
-- Re-enables gateways after 30 minutes of being disabled
-- Provides fallback to healthy gateways when all are unhealthy
+### Sliding Window Health Monitoring
+- **30-minute sliding window**: Tracks success/failure rates in a rolling 30-minute window
+- **Minimum request threshold**: Requires at least 10 requests before health evaluation
+- **Success rate threshold**: Automatically disables gateways with < 90% success rate
+- **Automatic recovery**: Re-enables gateways after 30 minutes of being disabled
+- **Real-time updates**: Health stats updated immediately on callback receipt
 
 ### Selection Logic
 1. **Health Check**: Only healthy gateways are considered
@@ -109,13 +112,13 @@ The service implements an intelligent gateway selection algorithm with the follo
 5. **Recovery**: Re-enables gateways after cooldown period
 
 ### Configuration
-Gateway weights and health thresholds can be modified in `src/services/gatewayService.js`:
+Gateway weights and health thresholds can be modified via API or in `src/services/gatewayService.js`:
 
 ```javascript
 const gatewayConfigs = [
-  { name: 'razorpay', weight: 40, success_threshold: 0.9 },
-  { name: 'payu', weight: 35, success_threshold: 0.9 },
-  { name: 'cashfree', weight: 25, success_threshold: 0.9 }
+  { name: 'razorpay', weight: 40, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
+  { name: 'payu', weight: 35, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
+  { name: 'cashfree', weight: 25, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 }
 ];
 ```
 
@@ -221,7 +224,47 @@ Updates transaction status and gateway health statistics.
 }
 ```
 
-### 3. Health Check
+### 3. Bulk Operations
+
+**POST** `/transactions/bulk-success`
+
+Processes all pending transactions as successful.
+
+**Response:**
+```json
+{
+  "message": "Bulk success operation completed",
+  "processed_count": 5,
+  "results": [
+    {
+      "order_id": "ORD123",
+      "status": "success",
+      "gateway": "razorpay"
+    }
+  ]
+}
+```
+
+**POST** `/transactions/bulk-failure`
+
+Processes all pending transactions as failed.
+
+**Response:**
+```json
+{
+  "message": "Bulk failure operation completed",
+  "processed_count": 3,
+  "results": [
+    {
+      "order_id": "ORD124",
+      "status": "failure",
+      "gateway": "payu"
+    }
+  ]
+}
+```
+
+### 4. Health Check
 
 **GET** `/health`
 
@@ -236,7 +279,7 @@ Returns basic service health status.
 }
 ```
 
-### 4. Gateway Health Check
+### 5. Gateway Health Check
 
 **GET** `/gateway/health`
 
@@ -256,27 +299,24 @@ Returns detailed gateway health and transaction statistics.
     "external": 1024000
   },
   "version": "1.0.0",
+  "all_gateways_unhealthy": false,
   "gateways": {
     "razorpay": {
       "weight": 40,
       "is_healthy": true,
+      "is_disabled": false,
       "success_rate": 0.95,
+      "window_success_rate": 0.92,
+      "window_request_count": 25,
       "total_requests": 100,
-      "disabled_until": null
-    },
-    "payu": {
-      "weight": 35,
-      "is_healthy": true,
-      "success_rate": 0.92,
-      "total_requests": 85,
-      "disabled_until": null
-    },
-    "cashfree": {
-      "weight": 25,
-      "is_healthy": true,
-      "success_rate": 0.88,
-      "total_requests": 60,
-      "disabled_until": null
+      "successful_requests": 95,
+      "failed_requests": 5,
+      "recent_success_callbacks": 95,
+      "recent_failure_callbacks": 5,
+      "disabled_until": null,
+      "threshold": 0.9,
+      "min_requests": 10,
+      "disable_duration_minutes": 30
     }
   },
   "transactions": {
@@ -299,15 +339,141 @@ Returns detailed gateway health and transaction statistics.
 }
 ```
 
-### 5. Statistics (Optional)
+### 6. Gateway Statistics
+
+**GET** `/gateway/stats`
+
+Returns detailed gateway statistics.
+
+**Response:**
+```json
+{
+  "gateway_stats": {
+    "razorpay": {
+      "weight": 40,
+      "is_healthy": true,
+      "window_success_rate": 0.92,
+      "total_requests": 100
+    }
+  },
+  "all_gateways_unhealthy": false
+}
+```
+
+### 7. Application Reset
+
+**POST** `/gateway/reset`
+
+Resets all gateways to healthy state and clears all transactions.
+
+**Response:**
+```json
+{
+  "message": "Application reset successfully",
+  "reset_details": {
+    "gateways_reset": true,
+    "transactions_cleared": true
+  }
+}
+```
+
+### 8. Gateway Configuration Management
+
+**GET** `/gateway/configs`
+
+Returns current gateway configurations.
+
+**Response:**
+```json
+{
+  "gateway_configs": [
+    {
+      "name": "razorpay",
+      "weight": 40,
+      "success_threshold": 0.9,
+      "min_requests": 10,
+      "disable_duration_minutes": 30
+    }
+  ]
+}
+```
+
+**POST** `/gateway/configs`
+
+Updates gateway configurations dynamically.
+
+**Sample Payload:**
+```json
+{
+  "gateway_configs": [
+    {
+      "name": "razorpay",
+      "weight": 50,
+      "success_threshold": 0.85,
+      "min_requests": 15,
+      "disable_duration_minutes": 45
+    },
+    {
+      "name": "payu",
+      "weight": 30,
+      "success_threshold": 0.9,
+      "min_requests": 10,
+      "disable_duration_minutes": 30
+    },
+    {
+      "name": "cashfree",
+      "weight": 20,
+      "success_threshold": 0.9,
+      "min_requests": 10,
+      "disable_duration_minutes": 30
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Gateway configurations updated successfully",
+  "gateway_configs": [...],
+  "total_weight": 100
+}
+```
+
+### 9. Transaction Statistics
 
 **GET** `/transactions`
 
 Returns transaction and gateway statistics.
 
-**GET** `/transactions/:transactionId`
-
-Returns specific transaction details.
+**Response:**
+```json
+{
+  "transaction_stats": {
+    "total_transactions": 245,
+    "by_status": {
+      "pending": 10,
+      "success": 220,
+      "failure": 15
+    },
+    "by_gateway": {
+      "razorpay": {
+        "total": 100,
+        "successful": 95,
+        "failed": 5,
+        "pending": 0
+      }
+    }
+  },
+  "gateway_stats": {
+    "razorpay": {
+      "weight": 40,
+      "is_healthy": true,
+      "window_success_rate": 0.92
+    }
+  }
+}
+```
 
 ## Logging
 
@@ -316,6 +482,7 @@ The service uses Winston for structured logging with the following features:
 - **Console Output**: Colored logs for development
 - **File Logging**: Separate error and combined log files
 - **Structured Data**: JSON format with timestamps and metadata
+- **Request-Specific Logging**: Each request gets a unique logger instance
 - **Log Levels**: Error, warn, info, debug
 
 Log files are stored in the `logs/` directory:
@@ -326,19 +493,19 @@ Log files are stored in the `logs/` directory:
 
 ### Health Monitoring
 
-- Automatic gateway health tracking
-- Success rate calculations
-- Gateway disable/enable based on performance
-- Detailed logging of health state changes
+- **Sliding Window Health Tracking**: 30-minute rolling window for success rate calculation
+- **Real-time Updates**: Health stats updated immediately on callback receipt
+- **Automatic Gateway Management**: Disable/enable based on performance
+- **Detailed Health Metrics**: Window success rate, request counts, and health status
 
 ### Statistics
 
-The service provides comprehensive statistics via the `/transactions` endpoint:
+The service provides comprehensive statistics via multiple endpoints:
 
-- Transaction counts by status
-- Gateway performance metrics
-- Recent transaction history
-- Health status of all gateways
+- **Transaction counts by status**: Pending, success, failure
+- **Gateway performance metrics**: Success rates, request counts, health status
+- **Sliding window analytics**: Real-time performance in 30-minute windows
+- **Health status of all gateways**: Current state and disabled status
 
 ## Error Handling
 
@@ -348,6 +515,7 @@ The service implements comprehensive error handling:
 - **Not Found**: 404 for missing transactions
 - **Conflicts**: 409 for duplicate order IDs and already processed transactions
 - **Gateway Mismatch**: 400 Bad Request for callback gateway mismatch
+- **All Gateways Unhealthy**: 503 Service Unavailable when no gateways are available
 - **Server Errors**: 500 for internal errors
 - **Structured Responses**: Consistent error format with timestamps and field details
 
@@ -399,12 +567,28 @@ The service implements comprehensive error handling:
 }
 ```
 
+#### All Gateways Unhealthy (503 Service Unavailable):
+```json
+{
+  "error": "All gateways are unhealthy",
+  "message": "No payment gateways are currently available. Please try again later.",
+  "gateway_stats": {
+    "razorpay": {
+      "is_healthy": false,
+      "disabled_until": "2024-01-15T11:00:00.000Z"
+    }
+  },
+  "order_id": "ORD123"
+}
+```
+
 ## Performance
 
 - **In-Memory Storage**: Fast transaction and state management
 - **Async Processing**: Non-blocking payment simulation
-- **Health Checks**: Efficient gateway monitoring
+- **Sliding Window Health Checks**: Efficient 30-minute rolling window monitoring
 - **Weighted Routing**: Intelligent load distribution
+- **Real-time Health Updates**: Immediate health stat updates on callback
 
 ## Security
 
@@ -413,6 +597,33 @@ The service implements comprehensive error handling:
 - **Helmet**: Security headers middleware
 - **CORS**: Configurable cross-origin resource sharing
 - **Error Sanitization**: Safe error responses
+- **Request ID Tracking**: Unique request IDs for audit trails
+
+## Advanced Features
+
+### Sliding Window Health Monitoring
+- **30-minute rolling window**: Tracks success/failure rates in real-time
+- **Automatic cleanup**: Removes requests older than 30 minutes
+- **Immediate updates**: Health stats updated on each callback
+- **Performance-based disablement**: Gates disabled based on window success rate
+
+### Bulk Operations
+- **Bulk success**: Process all pending transactions as successful
+- **Bulk failure**: Process all pending transactions as failed
+- **Batch processing**: Efficient handling of multiple transactions
+- **Health impact**: Bulk operations affect gateway health statistics
+
+### Dynamic Gateway Configuration
+- **Runtime updates**: Change gateway weights and thresholds without restart
+- **Validation**: Ensures total weights don't exceed 100%
+- **Health preservation**: Maintains existing health stats during updates
+- **Immediate effect**: Changes take effect immediately
+
+### Enhanced Error Handling
+- **All gateways unhealthy**: Graceful handling when no gateways available
+- **Request-specific logging**: Each request gets unique logger instance
+- **Detailed error responses**: Comprehensive error information
+- **Business rule validation**: Enforces transaction integrity
 
 ## Contributing
 

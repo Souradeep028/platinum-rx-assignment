@@ -5,20 +5,22 @@ const transactionService = require('../src/services/transactionService');
 
 describe('Health Check Integration Tests', () => {
   beforeEach(() => {
-    // Reset services
-    gatewayService.gateways.clear();
-    gatewayService.healthStats.clear();
-    gatewayService.initializeGateways();
-    
+    // Reset services state
     transactionService.transactions.clear();
     transactionService.orderIdToTransactionId.clear();
+    gatewayService.resetAllGateways();
   });
 
   afterEach(() => {
+    // Clean up health monitoring interval
     if (gatewayService.healthCheckInterval) {
       clearInterval(gatewayService.healthCheckInterval);
       gatewayService.healthCheckInterval = null;
     }
+    
+    // Clean up any pending payment simulation timeouts
+    // This is a workaround for the setTimeout in simulatePayment method
+    jest.useRealTimers();
   });
 
   describe('Gateway Health Monitoring Integration', () => {

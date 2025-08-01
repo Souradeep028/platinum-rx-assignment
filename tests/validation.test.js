@@ -1,7 +1,15 @@
 const request = require('supertest');
 const app = require('../src/app');
+const gatewayService = require('../src/services/gatewayService');
 
 describe('Validation Middleware', () => {
+  afterEach(() => {
+    // Clean up health monitoring interval
+    if (gatewayService.healthCheckInterval) {
+      clearInterval(gatewayService.healthCheckInterval);
+      gatewayService.healthCheckInterval = null;
+    }
+  });
   describe('POST /transactions/initiate validation', () => {
     it('should accept valid card payment data', async () => {
       const validPayload = {
