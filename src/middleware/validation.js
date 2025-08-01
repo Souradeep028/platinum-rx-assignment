@@ -114,6 +114,47 @@ const validateCallback = [
     .trim()
 ];
 
+// Validation rules for gateway configuration update
+const validateGatewayConfigs = [
+  check('gateway_configs')
+    .notEmpty()
+    .withMessage('gateway_configs is required')
+    .isArray()
+    .withMessage('gateway_configs must be an array'),
+  
+  check('gateway_configs.*.name')
+    .notEmpty()
+    .withMessage('Gateway name is required')
+    .isString()
+    .withMessage('Gateway name must be a string')
+    .isIn(['razorpay', 'payu', 'cashfree'])
+    .withMessage('Gateway name must be one of: razorpay, payu, cashfree'),
+  
+  check('gateway_configs.*.weight')
+    .notEmpty()
+    .withMessage('Weight is required')
+    .isInt({ min: 0, max: 100 })
+    .withMessage('Weight must be an integer between 0 and 100'),
+  
+  check('gateway_configs.*.success_threshold')
+    .notEmpty()
+    .withMessage('Success threshold is required')
+    .isFloat({ min: 0, max: 1 })
+    .withMessage('Success threshold must be a number between 0 and 1'),
+  
+  check('gateway_configs.*.min_requests')
+    .notEmpty()
+    .withMessage('Minimum requests is required')
+    .isInt({ min: 1 })
+    .withMessage('Minimum requests must be at least 1'),
+  
+  check('gateway_configs.*.disable_duration_minutes')
+    .notEmpty()
+    .withMessage('Disable duration is required')
+    .isInt({ min: 1 })
+    .withMessage('Disable duration must be at least 1 minute')
+];
+
 // Method validation middleware
 const validateMethod = (allowedMethods) => {
   return (req, res, next) => {
@@ -275,6 +316,7 @@ const sanitizeInput = [
 module.exports = {
   validateInitiateTransaction,
   validateCallback,
+  validateGatewayConfigs,
   validateMethod,
   handleValidationErrors,
   sanitizeInput,

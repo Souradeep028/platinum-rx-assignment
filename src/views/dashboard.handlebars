@@ -1,5 +1,5 @@
-<!-- Gateway Health Cards -->
-<div class="row mb-4">
+<!-- Gateway Health Status -->
+<div class="row mb-1">
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -19,22 +19,29 @@
     </div>
 </div>
 
+<!-- Gateway Configuration -->
+<div class="row mb-1">
+    <div class="col-12">
+        {{> gateway-config-form}}
+    </div>
+</div>
+
 <!-- API Playground -->
-<div class="row mb-4">
+<div class="row mb-1">
     <div class="col-12">
         {{> api-playground}}
     </div>
 </div>
 
 <!-- Pending Transactions -->
-<div class="row mb-4">
+<div class="row mb-1">
     <div class="col-12">
         {{> pending-transactions}}
     </div>
 </div>
 
 <!-- Completed Transactions -->
-<div class="row mb-4">
+<div class="row mb-1">
     <div class="col-12">
         {{> completed-transactions}}
     </div>
@@ -887,6 +894,9 @@ async function refreshTables() {
         console.log('Gateway stats API response:', gatewayResponse.data);
         const gatewayData = gatewayResponse.data;
         
+        // Debug: Log the gateway stats specifically
+        console.log('Gateway stats data:', gatewayData.gateway_stats);
+        
         // Update pending transactions
         updatePendingTransactionsTable(transactionData.transaction_stats.recent_transactions.filter(t => t.status === 'pending'));
         
@@ -1093,6 +1103,8 @@ function updateCompletedTransactionsTable(transactions) {
 
 // Update gateway cards
 function updateGatewayCards(gateways) {
+    console.log('Updating gateway cards with data:', gateways);
+    
     // Find the gateway cards container - it's the first card-body with a row
     const gatewayCardsContainer = document.querySelector('.card-body .row');
     

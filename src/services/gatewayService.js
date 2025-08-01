@@ -416,6 +416,108 @@ class GatewayService {
     
     return allUnhealthy;
   }
+
+  // Method to update gateway configurations
+  updateGatewayConfigs(newConfigs, requestLogger = null) {
+    const log = requestLogger || logger;
+    
+    // Validate that all weights sum to 100 or less
+    const totalWeight = newConfigs.reduce((sum, config) => sum + config.weight, 0);
+    if (totalWeight > 100) {
+      throw new Error(`Total gateway weights (${totalWeight}%) cannot exceed 100%`);
+    }
+
+    // Validate that all required fields are present
+    newConfigs.forEach(config => {
+      if (!config.name || !config.weight || !config.success_threshold || 
+          !config.min_requests || !config.disable_duration_minutes) {
+        throw new Error(`Missing required configuration fields for gateway: ${config.name}`);
+      }
+      
+      if (config.weight < 0 || config.weight > 100) {
+        throw new Error(`Weight must be between 0 and 100 for gateway: ${config.name}`);
+      }
+      
+      if (config.success_threshold < 0 || config.success_threshold > 1) {
+        throw new Error(`Success threshold must be between 0 and 1 for gateway: ${config.name}`);
+      }
+      
+      if (config.min_requests < 1) {
+        throw new Error(`Minimum requests must be at least 1 for gateway: ${config.name}`);
+      }
+      
+      if (config.disable_duration_minutes < 1) {
+        throw new Error(`Disable duration must be at least 1 minute for gateway: ${config.name}`);
+      }
+    });
+
+    // Stop health monitoring temporarily
+    this.stopHealthMonitoring();
+
+    // Store existing health stats to preserve them
+    const existingHealthStats = new Map();
+    this.healthStats.forEach((stats, gatewayName) => {
+      existingHealthStats.set(gatewayName, { ...stats });
+    });
+
+    // Clear existing gateways but preserve health stats
+    this.gateways.clear();
+
+    // Initialize with new configurations while preserving health stats
+    newConfigs.forEach(config => {
+      this.gateways.set(config.name, {
+        name: config.name,
+        weight: config.weight,
+        success_threshold: config.success_threshold,
+        min_requests: config.min_requests,
+        disable_duration_minutes: config.disable_duration_minutes,
+        is_healthy: true,
+        disabled_until: null,
+        disabled_at: null
+      });
+
+      // Preserve existing health stats or initialize new ones
+      const existingStats = existingHealthStats.get(config.name);
+      this.healthStats.set(config.name, existingStats || {
+        total_requests: 0,
+        successful_requests: 0,
+        failed_requests: 0,
+        last_updated: new Date(),
+        request_history: []
+      });
+    });
+
+    // Restart health monitoring
+    this.startHealthMonitoring();
+
+    log.info('Gateway configurations updated', {
+      gateways: newConfigs.map(config => config.name),
+      total_weight: totalWeight,
+      configs: newConfigs
+    });
+
+    return {
+      message: 'Gateway configurations updated successfully',
+      gateways: Array.from(this.gateways.keys()),
+      total_weight: totalWeight,
+      configs: newConfigs
+    };
+  }
+
+  // Method to get current gateway configurations
+  getGatewayConfigs() {
+    const configs = [];
+    this.gateways.forEach((gateway, name) => {
+      configs.push({
+        name: gateway.name,
+        weight: gateway.weight,
+        success_threshold: gateway.success_threshold,
+        min_requests: gateway.min_requests,
+        disable_duration_minutes: gateway.disable_duration_minutes
+      });
+    });
+    return configs;
+  }
 }
 
 module.exports = new GatewayService(); 

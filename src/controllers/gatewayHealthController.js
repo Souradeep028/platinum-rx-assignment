@@ -110,6 +110,78 @@ class GatewayHealthController {
       });
     }
   }
+
+  async getGatewayConfigs(req, res, next) {
+    const requestLogger = logger.createRequestLogger(req.requestId);
+    const gatewayService = require('../services/gatewayService');
+
+    try {
+      const configs = gatewayService.getGatewayConfigs();
+
+      requestLogger.info('Gateway configurations requested');
+
+      res.status(200).json({
+        gateway_configs: configs,
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId
+      });
+    } catch (error) {
+      requestLogger.error('Failed to get gateway configurations', {
+        error: error.message
+      });
+
+      res.status(500).json({
+        error: 'Failed to get gateway configurations',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId
+      });
+    }
+  }
+
+  async updateGatewayConfigs(req, res, next) {
+    const requestLogger = logger.createRequestLogger(req.requestId);
+    const gatewayService = require('../services/gatewayService');
+
+    try {
+      const { gateway_configs } = req.body;
+
+      if (!gateway_configs || !Array.isArray(gateway_configs)) {
+        return res.status(400).json({
+          error: 'Invalid request body',
+          message: 'gateway_configs must be an array',
+          timestamp: new Date().toISOString(),
+          request_id: req.requestId
+        });
+      }
+
+      const result = gatewayService.updateGatewayConfigs(gateway_configs, requestLogger);
+
+      requestLogger.info('Gateway configurations updated', {
+        gateways: result.gateways,
+        total_weight: result.total_weight
+      });
+
+      res.status(200).json({
+        message: result.message,
+        gateway_configs: result.configs,
+        total_weight: result.total_weight,
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId
+      });
+    } catch (error) {
+      requestLogger.error('Failed to update gateway configurations', {
+        error: error.message
+      });
+
+      res.status(400).json({
+        error: 'Failed to update gateway configurations',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId
+      });
+    }
+  }
 }
 
 module.exports = new GatewayHealthController(); 
