@@ -2,35 +2,76 @@
 
 A Node.js and Express-based payment service with dynamic routing across multiple payment gateways. This service implements intelligent gateway selection based on load distribution, health monitoring, and fault tolerance.
 
-## Project Structure
+DEMO LINK: https://platinum-rx-assignment-production.up.railway.app/
 
+## Setup the project and run it
+
+### Prerequisites
+
+- Node.js 18+ 
+- Docker (optional, for containerized deployment)
+
+### Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd payment-service
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+### Docker Deployment
+
+1. **Build and run with Docker Compose**
+   ```bash
+   docker-compose up --build
+   ```
+
+2. **Or build and run manually**
+   ```bash
+   docker build -t payment-service .
+   docker run -p 3000:3000 payment-service
+   ```
+
+## Run the test cases
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm test -- --coverage
 ```
-platinumrx-takehome/
-├── src/
-│   ├── app.js                 # Express application setup
-│   ├── server.js              # Server startup and graceful shutdown
-│   ├── controllers/
-│   │   ├── healthController.js
-│   │   └── transactionController.js
-│   ├── middleware/
-│   │   ├── errorHandler.js
-│   │   └── validation.js
-│   ├── routes/
-│   │   ├── healthRoutes.js
-│   │   ├── gatewayRoutes.js
-│   │   └── transactionRoutes.js
-│   ├── services/
-│   │   ├── gatewayService.js
-│   │   └── transactionService.js
-│   └── utils/
-│       └── logger.js
-├── tests/
-├── examples/
-├── logs/
-├── Dockerfile
-├── docker-compose.yml
-└── package.json
-```
+
+### Test Structure
+
+- **Unit Tests**: `tests/transactionService.test.js`, `tests/gatewayService.test.js`
+- **Integration Tests**: `tests/integration.test.js`
+- **Validation Tests**: `tests/validation.test.js`
+- **Business Validation Tests**: `tests/businessValidation.test.js`
+- **Coverage**: HTML reports generated in `coverage/` directory
+
+### Test Coverage
+
+The test suite covers:
+- **Unit Tests**: Service layer functionality and business logic
+- **Integration Tests**: End-to-end API functionality
+- **Validation Tests**: Input validation and sanitization
+- **Business Validation Tests**: Business rule validation (duplicate orders, callback validation)
 
 ## Features
 
@@ -40,46 +81,45 @@ platinumrx-takehome/
 - **Graceful Shutdown**: Proper signal handling for clean server termination
 - **Detailed Logging**: Structured logging with Winston
 - **Docker Support**: Containerized deployment with health checks
+- **Weighted Load Distribution**: Smart routing based on gateway weights and health
+- **Automatic Failover**: Disables unhealthy gateways and routes to healthy ones
+- **Transaction Management**: Complete transaction lifecycle management
+- **Real-time Statistics**: Comprehensive transaction and gateway performance metrics
 
-## Architecture
+## Gateway Selection Algorithm
 
-The project follows a clean, modular architecture with separation of concerns:
+The service implements an intelligent gateway selection algorithm with the following components:
 
-### Core Components
-
-- **Controllers** (`src/controllers/`): Handle HTTP requests/responses and coordinate between routes and services
-- **Services** (`src/services/`): Contain core business logic and data management
-- **Routes** (`src/routes/`): Define API endpoints and apply middleware
-- **Middleware** (`src/middleware/`): Handle validation, authentication, and request processing
-- **Gateway Service**: Manages payment gateways, health monitoring, and routing logic
-- **Transaction Service**: Handles transaction creation, updates, and validation
-- **Logging**: Winston-based structured logging for monitoring and debugging
-
-### Controller-Service Pattern
-
-The application uses a **Controller-Service** pattern for clean separation of concerns:
-
-- **Controllers**: Handle HTTP-specific logic, request/response formatting, and coordinate between routes and services
-- **Services**: Contain pure business logic, data management, and domain-specific operations
-- **Routes**: Define API endpoints and apply middleware (validation, authentication, etc.)
-- **Middleware**: Handle cross-cutting concerns like validation, logging, and error handling
-
-### Gateway Configuration
-
-The service supports three payment gateways with configurable weights:
-
+### Weighted Distribution
 - **Razorpay**: 40% weight
 - **Stripe**: 35% weight  
 - **PayPal**: 25% weight
 
 ### Health Monitoring
-
 - Tracks success/failure rates for each gateway
 - Automatically disables gateways with < 90% success rate (after 10+ requests)
 - Re-enables gateways after 30 minutes of being disabled
 - Provides fallback to healthy gateways when all are unhealthy
 
-## API Endpoints
+### Selection Logic
+1. **Health Check**: Only healthy gateways are considered
+2. **Weight Calculation**: Uses configured weights for distribution
+3. **Load Balancing**: Distributes requests based on weights and health status
+4. **Failover**: Automatically routes to healthy gateways if primary fails
+5. **Recovery**: Re-enables gateways after cooldown period
+
+### Configuration
+Gateway weights and health thresholds can be modified in `src/services/gatewayService.js`:
+
+```javascript
+const gatewayConfigs = [
+  { name: 'razorpay', weight: 40, success_threshold: 0.9 },
+  { name: 'stripe', weight: 35, success_threshold: 0.9 },
+  { name: 'paypal', weight: 25, success_threshold: 0.9 }
+];
+```
+
+## APIs and how to test them
 
 ### 1. Initiate Transaction
 
@@ -87,7 +127,7 @@ The service supports three payment gateways with configurable weights:
 
 Creates a new payment transaction with intelligent gateway selection.
 
-**Request Body:**
+**Sample Payload:**
 ```json
 {
   "order_id": "ORD123",
@@ -103,9 +143,45 @@ Creates a new payment transaction with intelligent gateway selection.
 ```
 
 **Supported Payment Types:**
-- **Card**: Requires `card_number`, `expiry` (MM/YY format), optional `cvv`, `card_holder_name`
-- **UPI**: Requires `upi_id` (format: user@bank)
-- **Netbanking**: Requires `bank_code` (3-10 characters)
+
+**Card Payment:**
+```json
+{
+  "order_id": "ORD_CARD_001",
+  "amount": 1500.0,
+  "payment_instrument": {
+    "type": "card",
+    "card_number": "4111111111111111",
+    "expiry": "12/25",
+    "cvv": "123",
+    "card_holder_name": "John Doe"
+  }
+}
+```
+
+**UPI Payment:**
+```json
+{
+  "order_id": "ORD_UPI_001",
+  "amount": 750.0,
+  "payment_instrument": {
+    "type": "upi",
+    "upi_id": "john.doe@icici"
+  }
+}
+```
+
+**Netbanking Payment:**
+```json
+{
+  "order_id": "ORD_NET_001",
+  "amount": 2000.0,
+  "payment_instrument": {
+    "type": "netbanking",
+    "bank_code": "HDFC"
+  }
+}
+```
 
 **Response:**
 ```json
@@ -124,7 +200,7 @@ Creates a new payment transaction with intelligent gateway selection.
 
 Updates transaction status and gateway health statistics.
 
-**Request Body:**
+**Sample Payload:**
 ```json
 {
   "order_id": "ORD123",
@@ -232,99 +308,6 @@ Returns transaction and gateway statistics.
 **GET** `/transactions/:transactionId`
 
 Returns specific transaction details.
-
-## Installation & Setup
-
-### Prerequisites
-
-- Node.js 18+ 
-- Docker (optional, for containerized deployment)
-
-### Local Development
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd payment-service
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-
-4. **Run tests**
-   ```bash
-   npm test
-   ```
-
-### Docker Deployment
-
-1. **Build and run with Docker Compose**
-   ```bash
-   docker-compose up --build
-   ```
-
-2. **Or build and run manually**
-   ```bash
-   docker build -t payment-service .
-   docker run -p 3000:3000 payment-service
-   ```
-
-## Configuration
-
-### Environment Variables
-
-- `PORT`: Server port (default: 3000)
-- `NODE_ENV`: Environment (development/production)
-
-### Gateway Configuration
-
-Gateway weights and health thresholds can be modified in `src/services/gatewayService.js`:
-
-```javascript
-const gatewayConfigs = [
-  { name: 'razorpay', weight: 40, success_threshold: 0.9 },
-  { name: 'stripe', weight: 35, success_threshold: 0.9 },
-  { name: 'paypal', weight: 25, success_threshold: 0.9 }
-];
-```
-
-## Testing
-
-### Running Tests
-
-```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests with coverage
-npm test -- --coverage
-```
-
-### Test Structure
-
-- **Unit Tests**: `tests/transactionService.test.js`, `tests/gatewayService.test.js`
-- **Integration Tests**: `tests/integration.test.js`
-- **Validation Tests**: `tests/validation.test.js`
-- **Business Validation Tests**: `tests/businessValidation.test.js`
-- **Coverage**: HTML reports generated in `coverage/` directory
-
-### Test Coverage
-
-The test suite covers:
-- **Unit Tests**: Service layer functionality and business logic
-- **Integration Tests**: End-to-end API functionality
-- **Validation Tests**: Input validation and sanitization
-- **Business Validation Tests**: Business rule validation (duplicate orders, callback validation)
 
 ## Logging
 
