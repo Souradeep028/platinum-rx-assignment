@@ -10,18 +10,8 @@ const {
   validateBusinessRules
 } = require('../middleware/validation');
 
-// New initiate endpoint
+// Transaction initiation endpoint
 router.post('/initiate', 
-  validateMethod(['POST']),
-  sanitizeInput,
-  validateInitiateTransaction,
-  handleValidationErrors,
-  validateBusinessRules.checkDuplicateOrderId,
-  transactionController.initiateTransaction
-);
-
-// Legacy endpoint for backward compatibility
-router.post('/', 
   validateMethod(['POST']),
   sanitizeInput,
   validateInitiateTransaction,
@@ -53,9 +43,7 @@ router.post('/simulate-failure',
   transactionController.simulateFailureCallback
 );
 
-router.get('/stats', validateMethod(['GET']), transactionController.getTransactionStats);
-
-// Get all transactions
+// Consolidated endpoint for getting transactions and stats
 router.get('/', validateMethod(['GET']), transactionController.getAllTransactions);
 
 // Bulk operation endpoints

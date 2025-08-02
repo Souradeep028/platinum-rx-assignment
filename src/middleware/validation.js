@@ -213,7 +213,7 @@ const validateBusinessRules = {
     const { order_id } = req.body;
     const transactionService = require('../services/transactionService');
     
-    const existingTransaction = transactionService.getTransactionByOrderId(order_id);
+    const existingTransaction = transactionService.getTransaction(order_id);
     if (existingTransaction) {
       const requestLogger = logger.createRequestLogger(req.requestId);
       requestLogger.warn('Duplicate order ID attempted', {
@@ -240,7 +240,7 @@ const validateBusinessRules = {
     const transactionService = require('../services/transactionService');
     
     // Check if transaction exists
-    const transaction = transactionService.getTransactionByOrderId(order_id);
+    const transaction = transactionService.getTransaction(order_id);
     if (!transaction) {
       const requestLogger = logger.createRequestLogger(req.requestId);
       requestLogger.warn('Callback for non-existent transaction', {

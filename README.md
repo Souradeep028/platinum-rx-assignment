@@ -89,6 +89,23 @@ The test suite covers:
 - **Real-time Statistics**: Comprehensive transaction and gateway performance metrics
 - **Enhanced Error Handling**: Improved error responses with request IDs and detailed information
 - **Simulation Endpoints**: Test endpoints for simulating success and failure scenarios
+- **Frontend Dashboard**: Interactive web interface for monitoring and testing
+- **Optimized API Design**: Consolidated endpoints to reduce redundancy and improve maintainability
+
+## Recent Updates
+
+### API Consolidation (Latest)
+- **Removed Redundant Endpoints**: Eliminated duplicate APIs to improve maintainability
+- **Consolidated Data Access**: Streamlined transaction and gateway data retrieval
+- **Improved Frontend Integration**: Fixed data flow between backend and frontend
+- **Enhanced Reset Functionality**: Fixed application reset feature with proper table refresh
+
+### Key Improvements
+- **Reduced API Surface**: From 12 endpoints to 9 endpoints
+- **Eliminated Code Duplication**: Removed redundant service methods and controllers
+- **Better Performance**: Reduced data processing overhead
+- **Improved Maintainability**: Less code to maintain and fewer potential bugs
+- **Consistent Responses**: Standardized data formats across endpoints
 
 ## Gateway Selection Algorithm
 
@@ -128,7 +145,7 @@ const gatewayConfigs = [
 
 ### 1. Initiate Transaction
 
-**POST** `/transactions/initiate` or **POST** `/transactions`
+**POST** `/api/transactions/initiate`
 
 Creates a new payment transaction with intelligent gateway selection.
 
@@ -210,7 +227,7 @@ Creates a new payment transaction with intelligent gateway selection.
 
 ### 2. Callback
 
-**POST** `/transactions/callback`
+**POST** `/api/transactions/callback`
 
 Updates transaction status and gateway health statistics.
 
@@ -238,7 +255,7 @@ Updates transaction status and gateway health statistics.
 
 ### 3. Simulation Endpoints
 
-**POST** `/transactions/simulate-success`
+**POST** `/api/transactions/simulate-success`
 
 Simulates a successful callback for testing purposes.
 
@@ -262,7 +279,7 @@ Simulates a successful callback for testing purposes.
 }
 ```
 
-**POST** `/transactions/simulate-failure`
+**POST** `/api/transactions/simulate-failure`
 
 Simulates a failed callback for testing purposes.
 
@@ -288,7 +305,7 @@ Simulates a failed callback for testing purposes.
 
 ### 4. Bulk Operations
 
-**POST** `/transactions/bulk-success`
+**POST** `/api/transactions/bulk-success`
 
 Processes all pending transactions as successful.
 
@@ -304,7 +321,7 @@ Processes all pending transactions as successful.
 }
 ```
 
-**POST** `/transactions/bulk-failure`
+**POST** `/api/transactions/bulk-failure`
 
 Processes all pending transactions as failed.
 
@@ -320,48 +337,11 @@ Processes all pending transactions as failed.
 }
 ```
 
-### 5. Transaction Statistics
+### 5. All Transactions with Statistics
 
-**GET** `/transactions/stats`
+**GET** `/api/transactions`
 
-Returns transaction and gateway statistics.
-
-**Response:**
-```json
-{
-  "transaction_stats": {
-    "total_transactions": 245,
-    "by_status": {
-      "pending": 10,
-      "success": 220,
-      "failure": 15
-    },
-    "by_gateway": {
-      "razorpay": {
-        "total": 100,
-        "successful": 95,
-        "failed": 5,
-        "pending": 0
-      }
-    }
-  },
-  "gateway_stats": {
-    "razorpay": {
-      "weight": 40,
-      "is_healthy": true,
-      "window_success_rate": 0.92
-    }
-  },
-  "timestamp": "2024-01-15T10:30:00.000Z",
-  "request_id": "req-12351"
-}
-```
-
-### 6. All Transactions
-
-**GET** `/transactions`
-
-Returns all transactions with statistics.
+Returns all transactions with comprehensive statistics.
 
 **Response:**
 ```json
@@ -389,6 +369,14 @@ Returns all transactions with statistics.
       "pending": 10,
       "success": 220,
       "failure": 15
+    },
+    "by_gateway": {
+      "razorpay": {
+        "total": 100,
+        "successful": 95,
+        "failed": 5,
+        "pending": 0
+      }
     }
   },
   "timestamp": "2024-01-15T10:30:00.000Z",
@@ -396,24 +384,9 @@ Returns all transactions with statistics.
 }
 ```
 
-### 7. Health Check
+### 6. Gateway Health Check
 
-**GET** `/health`
-
-Returns basic service health status.
-
-**Response:**
-```json
-{
-  "status": "OK",
-  "service": "payment-service",
-  "timestamp": "2024-01-15T10:30:00.000Z"
-}
-```
-
-### 8. Gateway Health Check
-
-**GET** `/gateway/health`
+**GET** `/api/gateways/health`
 
 Returns detailed gateway health and transaction statistics.
 
@@ -471,30 +444,9 @@ Returns detailed gateway health and transaction statistics.
 }
 ```
 
-### 9. Gateway Statistics
+### 7. Application Reset
 
-**GET** `/gateway/stats`
-
-Returns detailed gateway statistics.
-
-**Response:**
-```json
-{
-  "gateway_stats": {
-    "razorpay": {
-      "weight": 40,
-      "is_healthy": true,
-      "window_success_rate": 0.92,
-      "total_requests": 100
-    }
-  },
-  "all_gateways_unhealthy": false
-}
-```
-
-### 10. Application Reset
-
-**POST** `/gateway/reset`
+**POST** `/api/gateways/reset`
 
 Resets all gateways to healthy state and clears all transactions.
 
@@ -505,13 +457,15 @@ Resets all gateways to healthy state and clears all transactions.
   "reset_details": {
     "gateways_reset": true,
     "transactions_cleared": true
-  }
+  },
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12353"
 }
 ```
 
-### 11. Gateway Configuration Management
+### 8. Gateway Configuration Management
 
-**GET** `/gateway/configs`
+**GET** `/api/gateways/configs`
 
 Returns current gateway configurations.
 
@@ -526,11 +480,13 @@ Returns current gateway configurations.
       "min_requests": 10,
       "disable_duration_minutes": 30
     }
-  ]
+  ],
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12354"
 }
 ```
 
-**POST** `/gateway/configs`
+**POST** `/api/gateways/configs`
 
 Updates gateway configurations dynamically.
 
@@ -568,9 +524,34 @@ Updates gateway configurations dynamically.
 {
   "message": "Gateway configurations updated successfully",
   "gateway_configs": [...],
-  "total_weight": 100
+  "total_weight": 100,
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12355"
 }
 ```
+
+## Frontend Dashboard
+
+The application includes a comprehensive web dashboard for monitoring and testing:
+
+### Features
+- **Real-time Transaction Monitoring**: View pending and completed transactions
+- **Gateway Health Cards**: Visual representation of gateway status and performance
+- **Interactive Testing**: Create transactions and simulate callbacks directly from the UI
+- **Bulk Operations**: Process multiple transactions with bulk success/failure
+- **Application Reset**: Reset all data and gateway states with one click
+- **Gateway Configuration**: Update gateway weights and thresholds dynamically
+- **Live Logs**: Real-time gateway selection and operation logs
+
+### Access
+Navigate to `http://localhost:3000` to access the dashboard.
+
+### Key Functions
+- **Transaction Creation**: Use the API playground to create test transactions
+- **Callback Simulation**: Trigger success/failure callbacks for pending transactions
+- **Bulk Processing**: Process all pending transactions at once
+- **Health Monitoring**: View real-time gateway health and performance metrics
+- **Configuration Management**: Update gateway settings without restart
 
 ## Logging
 
@@ -699,6 +680,7 @@ All error responses now include:
 - **Weighted Routing**: Intelligent load distribution
 - **Real-time Health Updates**: Immediate health stat updates on callback
 - **Request ID Tracking**: Unique request identifiers for better debugging and monitoring
+- **Optimized API Design**: Reduced endpoints and improved data flow
 
 ## Security
 
@@ -742,6 +724,31 @@ All error responses now include:
 - **Failure simulation**: Test failed payment scenarios
 - **Gateway health impact**: Simulations affect gateway health statistics
 - **Testing support**: Easy testing of different payment scenarios
+
+### Frontend Integration
+- **Real-time Updates**: Automatic table refresh and data synchronization
+- **Interactive Testing**: Create and manage transactions through the UI
+- **Visual Monitoring**: Gateway health cards and transaction tables
+- **Bulk Operations**: Process multiple transactions with UI controls
+- **Application Reset**: One-click reset with proper UI refresh
+
+## API Consolidation Summary
+
+### Removed Redundant Endpoints
+- `POST /api/transactions/` (legacy) → Use `POST /api/transactions/initiate`
+- `GET /api/transactions/stats` → Use `GET /api/transactions/` (includes stats)
+- `GET /api/gateways/stats` → Use `GET /api/gateways/health` (includes stats)
+
+### Consolidated Data Access
+- **Transaction Data**: Single endpoint returns transactions with comprehensive statistics
+- **Gateway Data**: Health endpoint includes all gateway statistics
+- **Frontend Integration**: Streamlined data flow between backend and frontend
+
+### Benefits
+- **Reduced Complexity**: Fewer endpoints to maintain and document
+- **Better Performance**: Less redundant data processing
+- **Improved Consistency**: Standardized response formats
+- **Enhanced Maintainability**: Less code to maintain and fewer potential bugs
 
 ## Contributing
 

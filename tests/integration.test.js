@@ -53,7 +53,7 @@ describe('Integration Tests', () => {
 
       // Step 3: Verify transaction status
       const statsResponse = await request(app)
-        .get('/api/transactions/stats');
+        .get('/api/transactions/');
 
       expect(statsResponse.status).toBe(200);
       expect(statsResponse.body.transaction_stats.total_transactions).toBe(1);
@@ -93,7 +93,7 @@ describe('Integration Tests', () => {
 
       // Step 3: Verify transaction status
       const statsResponse = await request(app)
-        .get('/api/transactions/stats');
+        .get('/api/transactions/');
 
       expect(statsResponse.status).toBe(200);
       expect(statsResponse.body.transaction_stats.total_transactions).toBe(1);
@@ -174,13 +174,13 @@ describe('Integration Tests', () => {
 
     test('should return gateway statistics', async () => {
       const response = await request(app)
-        .get('/api/gateways/stats');
+        .get('/api/gateways/health');
 
       expect(response.status).toBe(200);
-      expect(response.body.gateway_stats).toBeDefined();
-      expect(response.body.gateway_stats.razorpay).toBeDefined();
-      expect(response.body.gateway_stats.payu).toBeDefined();
-      expect(response.body.gateway_stats.cashfree).toBeDefined();
+      expect(response.body.gateways).toBeDefined();
+      expect(response.body.gateways.razorpay).toBeDefined();
+      expect(response.body.gateways.payu).toBeDefined();
+      expect(response.body.gateways.cashfree).toBeDefined();
     });
 
     test('should return gateway configurations', async () => {
@@ -227,7 +227,7 @@ describe('Integration Tests', () => {
   describe('Error Handling', () => {
     test('should handle invalid transaction data', async () => {
       const response = await request(app)
-        .post('/api/transactions')
+        .post('/api/transactions/initiate')
         .send({
           // Missing required fields
         });

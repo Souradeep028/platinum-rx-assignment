@@ -7,7 +7,6 @@ const path = require('path');
 const logger = require('./utils/logger');
 const requestIdMiddleware = require('./middleware/requestId');
 const transactionRoutes = require('./routes/transactionRoutes');
-const healthRoutes = require('./routes/healthRoutes');
 const gatewayRoutes = require('./routes/gatewayRoutes');
 const frontendRoutes = require('./routes/frontendRoutes');
 const errorHandler = require('./middleware/errorHandler');
@@ -76,7 +75,6 @@ app.use('/static', express.static(path.join(__dirname, 'public')));
 // API routes
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/gateways', gatewayRoutes);
-app.use('/api/health', healthRoutes);
 
 // Frontend routes
 app.use('/', frontendRoutes);

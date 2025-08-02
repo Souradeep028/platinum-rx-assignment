@@ -57,7 +57,7 @@ describe('TransactionService', () => {
         'razorpay'
       );
 
-      const foundTransaction = transactionService.getTransactionByOrderId(orderId);
+      const foundTransaction = transactionService.getTransaction(orderId);
       expect(foundTransaction).toEqual(transaction);
     });
   });

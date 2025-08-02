@@ -39,23 +39,6 @@ class GatewayHealthController {
     res.status(200).json(gatewayHealth);
   }
 
-  async getGatewayStats(req, res, next) {
-    const requestLogger = logger.createRequestLogger(req.requestId);
-
-    // Trigger health check logic to re-enable gateways if time has elapsed
-    gatewayService.monitorGatewayHealthStatus('check');
-
-    const gatewayStats = gatewayService.getGatewayHealthSnapshot();
-
-    requestLogger.info('Gateway statistics requested');
-
-    res.status(200).json({
-      gateway_stats: gatewayStats,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
-  }
-
   async resetApplication(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
 

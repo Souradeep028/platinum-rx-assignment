@@ -890,21 +890,21 @@ async function refreshTables() {
         const transactionData = transactionResponse.data;
         
         // Get gateway stats
-        const gatewayResponse = await axios.get('/api/gateways/stats');
+        const gatewayResponse = await axios.get('/api/gateways/health');
         console.log('Gateway stats API response:', gatewayResponse.data);
         const gatewayData = gatewayResponse.data;
         
         // Debug: Log the gateway stats specifically
-        console.log('Gateway stats data:', gatewayData.gateway_stats);
+        console.log('Gateway stats data:', gatewayData.gateways);
         
         // Update pending transactions
-        updatePendingTransactionsTable(transactionData.transaction_stats.recent_transactions.filter(t => t.status === 'pending'));
+        updatePendingTransactionsTable(transactionData.transactions.filter(t => t.status === 'pending'));
         
         // Update completed transactions
-        updateCompletedTransactionsTable(transactionData.transaction_stats.recent_transactions.filter(t => t.status !== 'pending'));
+        updateCompletedTransactionsTable(transactionData.transactions.filter(t => t.status !== 'pending'));
         
         // Update gateway cards
-        updateGatewayCards(gatewayData.gateway_stats);
+        updateGatewayCards(gatewayData.gateways);
         
         // Ensure scrollable behavior is maintained after updates
         initializeScrollableTables();

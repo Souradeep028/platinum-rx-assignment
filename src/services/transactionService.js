@@ -37,10 +37,6 @@ class TransactionService {
     return this.transactions.get(orderId);
   }
 
-  getTransactionByOrderId(orderId) {
-    return this.transactions.get(orderId);
-  }
-
   updateTransactionStatus(orderId, status, gateway, reason = null, requestLogger = null) {
     const log = requestLogger || logger;
     const transaction = this.transactions.get(orderId);
@@ -67,10 +63,6 @@ class TransactionService {
     });
 
     return transaction;
-  }
-
-  updateTransactionStatusByOrderId(orderId, status, gateway, reason = null, requestLogger = null) {
-    return this.updateTransactionStatus(orderId, status, gateway, reason, requestLogger);
   }
 
   getAllTransactions() {

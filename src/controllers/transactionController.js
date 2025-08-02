@@ -76,22 +76,6 @@ class TransactionController {
     });
   }
 
-  async getTransactionStats(req, res, next) {
-    const requestLogger = logger.createRequestLogger(req.requestId);
-
-    const transactionStats = transactionService.getTransactionStats();
-    const gatewayStats = gatewayService.getGatewayHealthSnapshot();
-
-    requestLogger.info('Transaction statistics requested');
-
-    res.status(200).json({
-      transaction_stats: transactionStats,
-      gateway_stats: gatewayStats,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
-  }
-
   async getAllTransactions(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
 
