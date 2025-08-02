@@ -267,8 +267,8 @@ document.getElementById('transactionForm').addEventListener('submit', async func
     console.log('Sending payload:', JSON.stringify(payload, null, 2));
     
     try {
-        console.log('Making API request to /transactions/initiate');
-        const response = await axios.post('/transactions/initiate', payload);
+        console.log('Making API request to /api/transactions/initiate');
+        const response = await axios.post('/api/transactions/initiate', payload);
         console.log('API response:', response.data);
         displayResponse(response.data);
         addGatewayLog(`Transaction initiated with gateway: ${response.data.selected_gateway}`);
@@ -418,7 +418,7 @@ document.getElementById('bulkTransactionForm').addEventListener('submit', async 
             const promise = new Promise(resolve => {
                 setTimeout(async () => {
                     try {
-                        const response = await axios.post('/transactions/initiate', payload);
+                        const response = await axios.post('/api/transactions/initiate', payload);
                         results.successful++;
                         results.transactions.push({
                             order_id: orderId,
@@ -694,7 +694,7 @@ async function resetApplication() {
         resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resetting...';
         
         console.log('Initiating application reset...');
-        const response = await axios.post('/gateway/reset');
+        const response = await axios.post('/api/gateways/reset');
         console.log('Reset API response:', response.data);
         
         // Clear gateway logs
@@ -735,7 +735,7 @@ async function triggerCallback(orderId, status, gateway) {
     
     try {
         console.log('Making callback API request:', payload);
-        const response = await axios.post('/transactions/callback', payload);
+        const response = await axios.post('/api/transactions/callback', payload);
         console.log('Callback API response:', response.data);
         addGatewayLog(`Callback triggered for ${orderId}: ${status}`);
         
@@ -762,7 +762,7 @@ async function triggerBulkSuccess() {
     
     try {
         console.log('Triggering bulk success for all pending transactions');
-        const response = await axios.post('/transactions/bulk-success');
+        const response = await axios.post('/api/transactions/bulk-success');
         console.log('Bulk success API response:', response.data);
         
         addGatewayLog(`Bulk success operation completed: ${response.data.processed_count} transactions processed`);
@@ -797,7 +797,7 @@ async function triggerBulkFailure() {
     
     try {
         console.log('Triggering bulk failure for all pending transactions');
-        const response = await axios.post('/transactions/bulk-failure');
+        const response = await axios.post('/api/transactions/bulk-failure');
         console.log('Bulk failure API response:', response.data);
         
         addGatewayLog(`Bulk failure operation completed: ${response.data.processed_count} transactions processed`);
@@ -839,7 +839,7 @@ function updateBulkButtonStates(hasPendingTransactions) {
 async function checkGatewayHealth() {
     try {
         console.log('Checking gateway health...');
-        const response = await axios.get('/gateway/health');
+        const response = await axios.get('/api/gateways/health');
         console.log('Gateway health response:', response.data);
         
         if (response.data.gateways) {
@@ -885,12 +885,12 @@ async function refreshTables() {
         console.log('Refreshing transaction tables and gateway stats...');
         
         // Get transaction data
-        const transactionResponse = await axios.get('/transactions');
+        const transactionResponse = await axios.get('/api/transactions');
         console.log('Transactions API response:', transactionResponse.data);
         const transactionData = transactionResponse.data;
         
         // Get gateway stats
-        const gatewayResponse = await axios.get('/gateway/stats');
+        const gatewayResponse = await axios.get('/api/gateways/stats');
         console.log('Gateway stats API response:', gatewayResponse.data);
         const gatewayData = gatewayResponse.data;
         

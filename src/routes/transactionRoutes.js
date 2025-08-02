@@ -10,7 +10,18 @@ const {
   validateBusinessRules
 } = require('../middleware/validation');
 
+// New initiate endpoint
 router.post('/initiate', 
+  validateMethod(['POST']),
+  sanitizeInput,
+  validateInitiateTransaction,
+  handleValidationErrors,
+  validateBusinessRules.checkDuplicateOrderId,
+  transactionController.initiateTransaction
+);
+
+// Legacy endpoint for backward compatibility
+router.post('/', 
   validateMethod(['POST']),
   sanitizeInput,
   validateInitiateTransaction,
@@ -25,23 +36,41 @@ router.post('/callback',
   validateCallback,
   handleValidationErrors,
   validateBusinessRules.validateCallback,
-  transactionController.handleCallback
+  transactionController.processCallback
 );
 
+router.post('/simulate-success',
+  validateMethod(['POST']),
+  sanitizeInput,
+  handleValidationErrors,
+  transactionController.simulateSuccessCallback
+);
+
+router.post('/simulate-failure',
+  validateMethod(['POST']),
+  sanitizeInput,
+  handleValidationErrors,
+  transactionController.simulateFailureCallback
+);
+
+router.get('/stats', validateMethod(['GET']), transactionController.getTransactionStats);
+
+// Get all transactions
+router.get('/', validateMethod(['GET']), transactionController.getAllTransactions);
+
+// Bulk operation endpoints
 router.post('/bulk-success',
   validateMethod(['POST']),
   sanitizeInput,
   handleValidationErrors,
-  transactionController.bulkSuccess
+  transactionController.bulkSuccessCallback
 );
 
 router.post('/bulk-failure',
   validateMethod(['POST']),
   sanitizeInput,
   handleValidationErrors,
-  transactionController.bulkFailure
+  transactionController.bulkFailureCallback
 );
-
-router.get('/', validateMethod(['GET']), transactionController.getTransactions);
 
 module.exports = router; 

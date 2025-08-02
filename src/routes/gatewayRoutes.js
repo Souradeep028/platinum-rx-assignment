@@ -5,7 +5,7 @@ const { validateMethod, validateGatewayConfigs, handleValidationErrors } = requi
 
 router.get('/health', 
   validateMethod(['GET']),
-  gatewayHealthController.getGatewayHealth
+  gatewayHealthController.getHealth
 );
 
 router.get('/stats', 

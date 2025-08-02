@@ -73,9 +73,12 @@ app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:htt
 // Serve static files
 app.use('/static', express.static(path.join(__dirname, 'public')));
 
-app.use('/transactions', transactionRoutes);
-app.use('/gateway', gatewayRoutes);
-app.use('/health', healthRoutes);
+// API routes
+app.use('/api/transactions', transactionRoutes);
+app.use('/api/gateways', gatewayRoutes);
+app.use('/api/health', healthRoutes);
+
+// Frontend routes
 app.use('/', frontendRoutes);
 
 app.use(errorHandler);
@@ -87,6 +90,5 @@ app.use('*', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
 
 module.exports = app; 

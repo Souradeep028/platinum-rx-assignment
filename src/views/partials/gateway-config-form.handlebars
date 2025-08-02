@@ -113,7 +113,7 @@ let currentGatewayConfigs = [];
 // Load current gateway configurations
 async function loadGatewayConfigs() {
     try {
-        const response = await axios.get('/gateway/configs');
+        const response = await axios.get('/api/gateways/configs');
         currentGatewayConfigs = response.data.gateway_configs;
         renderGatewayConfigForm();
     } catch (error) {
@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // Send update request
-                const response = await axios.post('/gateway/configs', {
+                const response = await axios.post('/api/gateways/configs', {
                     gateway_configs: configs
                 });
                 

@@ -3,46 +3,32 @@ const logger = require('../utils/logger');
 class GatewayHealthController {
   async getHealth(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    
-    const healthStatus = {
-      status: 'OK',
-      service: 'payment-service',
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    };
-
-    requestLogger.info('Health check requested', {
-      status: healthStatus.status
-    });
-
-    res.status(200).json(healthStatus);
-  }
-  
-  async getGatewayHealth(req, res, next) {
-    const requestLogger = logger.createRequestLogger(req.requestId);
     const gatewayService = require('../services/gatewayService');
     const transactionService = require('../services/transactionService');
 
-    const gatewayStats = gatewayService.getGatewayStats();
+    const gatewayHealthSnapshot = gatewayService.getGatewayHealthSnapshot();
     const transactionStats = transactionService.getTransactionStats();
-    const allGatewaysUnhealthy = gatewayService.areAllGatewaysUnhealthy(requestLogger);
+
+    // Check if all gateways are unhealthy
+    const allUnhealthy = Object.values(gatewayHealthSnapshot).every(gateway => !gateway.is_healthy);
+    const overallStatus = allUnhealthy ? 'unhealthy' : 'healthy';
 
     const gatewayHealth = {
-      status: allGatewaysUnhealthy ? 'DEGRADED' : 'OK',
+      status: overallStatus,
       service: 'payment-service',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
       version: '1.0.0',
-      all_gateways_unhealthy: allGatewaysUnhealthy,
-      gateways: gatewayStats,
+      all_gateways_unhealthy: allUnhealthy,
+      gateways: gatewayHealthSnapshot,
       transactions: transactionStats,
       request_id: req.requestId
     };
 
     requestLogger.info('Gateway health check requested', {
       status: gatewayHealth.status,
-      all_gateways_unhealthy: allGatewaysUnhealthy,
+      all_gateways_unhealthy: allUnhealthy,
       uptime: gatewayHealth.uptime,
       total_transactions: transactionStats.total_transactions
     });
@@ -54,16 +40,12 @@ class GatewayHealthController {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const gatewayService = require('../services/gatewayService');
 
-    const gatewayStats = gatewayService.getGatewayStats();
-    const allGatewaysUnhealthy = gatewayService.areAllGatewaysUnhealthy(requestLogger);
+    const gatewayStats = gatewayService.getGatewayHealthSnapshot();
 
-    requestLogger.info('Gateway stats requested', {
-      all_gateways_unhealthy: allGatewaysUnhealthy
-    });
+    requestLogger.info('Gateway statistics requested');
 
     res.status(200).json({
       gateway_stats: gatewayStats,
-      all_gateways_unhealthy: allGatewaysUnhealthy,
       timestamp: new Date().toISOString(),
       request_id: req.requestId
     });
@@ -74,113 +56,80 @@ class GatewayHealthController {
     const gatewayService = require('../services/gatewayService');
     const transactionService = require('../services/transactionService');
 
-    try {
-      // Reset all gateways to healthy state
-      gatewayService.resetAllGateways(requestLogger);
-      
-      // Clear all transactions
-      transactionService.clearAllTransactions(requestLogger);
+    // Reset all gateways to healthy state
+    gatewayService.manageGatewayState(null, 'reset');
 
-      const resetResponse = {
-        message: 'Application reset successfully',
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId,
-        reset_details: {
-          gateways_reset: true,
-          transactions_cleared: true
-        }
-      };
+    // Clear all transactions
+    transactionService.clearAllTransactions(requestLogger);
 
-      requestLogger.info('Application reset requested', {
+    const resetResponse = {
+      message: 'Application reset successfully',
+      timestamp: new Date().toISOString(),
+      request_id: req.requestId,
+      reset_details: {
         gateways_reset: true,
         transactions_cleared: true
-      });
+      }
+    };
 
-      res.status(200).json(resetResponse);
-    } catch (error) {
-      requestLogger.error('Application reset failed', {
-        error: error.message
-      });
+    requestLogger.info('Application reset requested', {
+      gateways_reset: true,
+      transactions_cleared: true
+    });
 
-      res.status(500).json({
-        error: 'Failed to reset application',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
-    }
+    res.status(200).json(resetResponse);
   }
 
   async getGatewayConfigs(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const gatewayService = require('../services/gatewayService');
 
-    try {
-      const configs = gatewayService.getGatewayConfigs();
+    const configs = Array.from(gatewayService.gateways.values()).map(gateway => ({
+      name: gateway.name,
+      weight: gateway.weight,
+      success_threshold: gateway.success_threshold,
+      min_requests: gateway.min_requests,
+      disable_duration_minutes: gateway.disable_duration_minutes
+    }));
 
-      requestLogger.info('Gateway configurations requested');
+    requestLogger.info('Gateway configurations requested');
 
-      res.status(200).json({
-        gateway_configs: configs,
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
-    } catch (error) {
-      requestLogger.error('Failed to get gateway configurations', {
-        error: error.message
-      });
-
-      res.status(500).json({
-        error: 'Failed to get gateway configurations',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
-    }
+    res.status(200).json({
+      gateway_configs: configs,
+      timestamp: new Date().toISOString(),
+      request_id: req.requestId
+    });
   }
 
   async updateGatewayConfigs(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const gatewayService = require('../services/gatewayService');
 
-    try {
-      const { gateway_configs } = req.body;
+    const { gateway_configs } = req.body;
 
-      if (!gateway_configs || !Array.isArray(gateway_configs)) {
-        return res.status(400).json({
-          error: 'Invalid request body',
-          message: 'gateway_configs must be an array',
-          timestamp: new Date().toISOString(),
-          request_id: req.requestId
-        });
-      }
-
-      const result = gatewayService.updateGatewayConfigs(gateway_configs, requestLogger);
-
-      requestLogger.info('Gateway configurations updated', {
-        gateways: result.gateways,
-        total_weight: result.total_weight
-      });
-
-      res.status(200).json({
-        message: result.message,
-        gateway_configs: result.configs,
-        total_weight: result.total_weight,
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
-    } catch (error) {
-      requestLogger.error('Failed to update gateway configurations', {
-        error: error.message
-      });
-
-      res.status(400).json({
-        error: 'Failed to update gateway configurations',
-        message: error.message,
+    if (!gateway_configs || !Array.isArray(gateway_configs)) {
+      return res.status(400).json({
+        error: 'Invalid request body',
+        message: 'gateway_configs must be an array',
         timestamp: new Date().toISOString(),
         request_id: req.requestId
       });
     }
+
+    gatewayService.validateAndSetConfig(gateway_configs);
+
+    requestLogger.info('Gateway configurations updated', {
+      gateways: gateway_configs.map(c => c.name),
+      total_weight: gateway_configs.reduce((sum, c) => sum + c.weight, 0)
+    });
+
+    res.status(200).json({
+      message: 'Gateway configurations updated successfully',
+      gateway_configs: gateway_configs,
+      total_weight: gateway_configs.reduce((sum, c) => sum + c.weight, 0),
+      timestamp: new Date().toISOString(),
+      request_id: req.requestId
+    });
   }
 }
 

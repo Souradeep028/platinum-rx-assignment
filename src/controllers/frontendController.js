@@ -49,30 +49,41 @@ class FrontendController {
     // Simulate the gateway health response
     const gatewayService = require('../services/gatewayService');
     const transactionService = require('../services/transactionService');
-    
-    const gatewayStats = gatewayService.getGatewayStats();
+
+    const gatewayHealthSnapshot = gatewayService.getGatewayHealthSnapshot();
     const transactionStats = transactionService.getTransactionStats();
-    
+    const allGatewaysUnhealthy = Object.values(gatewayHealthSnapshot).every(gateway => !gateway.is_healthy);
+
+    // Process gateway data to include success_rate_percentage
+    const processedGateways = {};
+    for (const [gatewayName, gatewayData] of Object.entries(gatewayHealthSnapshot)) {
+      processedGateways[gatewayName] = {
+        ...gatewayData,
+        success_rate_percentage: Math.round(gatewayData.success_rate * 100)
+      };
+    }
+
     return {
-      status: 'OK',
+      status: allGatewaysUnhealthy ? 'DEGRADED' : 'OK',
       service: 'payment-service',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
       version: '1.0.0',
-      gateways: gatewayStats,
+      all_gateways_unhealthy: allGatewaysUnhealthy,
+      gateways: processedGateways,
       transactions: transactionStats
     };
   }
-  
+
   static async getTransactionData() {
-    // Simulate the transaction response
+    // Simulate the transaction stats response
     const transactionService = require('../services/transactionService');
     const gatewayService = require('../services/gatewayService');
-    
+
     const transactionStats = transactionService.getTransactionStats();
-    const gatewayStats = gatewayService.getGatewayStats();
-    
+    const gatewayStats = gatewayService.getGatewayHealthSnapshot();
+
     return {
       transaction_stats: transactionStats,
       gateway_stats: gatewayStats,

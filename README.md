@@ -379,7 +379,7 @@ Resets all gateways to healthy state and clears all transactions.
 
 ### 8. Gateway Configuration Management
 
-**GET** `/gateway/configs`
+**GET** `/api/gateways/configs`
 
 Returns current gateway configurations.
 
@@ -398,7 +398,7 @@ Returns current gateway configurations.
 }
 ```
 
-**POST** `/gateway/configs`
+**POST** `/api/gateways/configs`
 
 Updates gateway configurations dynamically.
 

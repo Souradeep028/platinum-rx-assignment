@@ -25,7 +25,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(validPayload)
         .expect(201);
 
@@ -45,7 +45,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(invalidPayload)
         .expect(400);
 
@@ -66,7 +66,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(invalidPayload)
         .expect(400);
 
@@ -87,7 +87,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(invalidPayload)
         .expect(400);
 
@@ -108,7 +108,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(invalidPayload)
         .expect(400);
 
@@ -129,7 +129,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(invalidPayload)
         .expect(400);
 
@@ -149,7 +149,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(validPayload)
         .expect(201);
 
@@ -169,7 +169,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(invalidPayload)
         .expect(400);
 
@@ -189,7 +189,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(validPayload)
         .expect(201);
 
@@ -209,7 +209,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(invalidPayload)
         .expect(400);
 
@@ -233,7 +233,7 @@ describe('Validation Middleware', () => {
       };
 
       const createResponse = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(createPayload)
         .expect(201);
 
@@ -246,13 +246,13 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/callback')
+        .post('/api/transactions/callback')
         .send(callbackPayload)
         .expect(200);
 
-      expect(response.body.message).toBe('Transaction status updated successfully');
+      expect(response.body.message).toBe('Callback processed successfully');
       expect(response.body.order_id).toBe('ORD_CALLBACK_123');
-      expect(response.body.status).toBe('success');
+      expect(response.body.success).toBe(true);
       expect(response.body.gateway).toBe(createResponse.body.selected_gateway);
     });
 
@@ -263,7 +263,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/callback')
+        .post('/api/transactions/callback')
         .send(invalidPayload)
         .expect(400);
 
@@ -280,7 +280,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/callback')
+        .post('/api/transactions/callback')
         .send(invalidPayload)
         .expect(400);
 
@@ -297,7 +297,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/callback')
+        .post('/api/transactions/callback')
         .send(invalidPayload)
         .expect(400);
 
@@ -319,7 +319,7 @@ describe('Validation Middleware', () => {
       };
 
       const createResponse = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(createPayload)
         .expect(201);
 
@@ -331,11 +331,11 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/callback')
+        .post('/api/transactions/callback')
         .send(callbackPayload)
         .expect(200);
 
-      expect(response.body.message).toBe('Transaction status updated successfully');
+      expect(response.body.message).toBe('Callback processed successfully');
     });
   });
 
@@ -353,7 +353,7 @@ describe('Validation Middleware', () => {
       };
 
       const response = await request(app)
-        .post('/transactions/initiate')
+        .post('/api/transactions/initiate')
         .send(payloadWithWhitespace)
         .expect(201);
 

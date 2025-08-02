@@ -40,6 +40,19 @@ const errorHandler = (err, req, res, next) => {
   } else if (err.code === 'ETIMEDOUT') {
     statusCode = 408;
     message = 'Request timeout';
+  } else if (err.message === 'All gateways are unhealthy') {
+    statusCode = 503;
+    message = 'All gateways are unhealthy';
+    
+    // Include gateway health information for this specific error
+    const gatewayService = require('../services/gatewayService');
+    return res.status(statusCode).json({
+      error: message,
+      message: 'No payment gateways are currently available. Please try again later.',
+      gateway_stats: gatewayService.getGatewayHealthSnapshot(),
+      request_id: requestId,
+      timestamp: new Date().toISOString()
+    });
   }
 
   res.status(statusCode).json({

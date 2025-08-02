@@ -3,46 +3,32 @@ const logger = require('../utils/logger');
 class GatewayHealthController {
   async getHealth(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    
-    const healthStatus = {
-      status: 'OK',
-      service: 'payment-service',
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    };
-
-    requestLogger.info('Health check requested', {
-      status: healthStatus.status
-    });
-
-    res.status(200).json(healthStatus);
-  }
-  
-  async getGatewayHealth(req, res, next) {
-    const requestLogger = logger.createRequestLogger(req.requestId);
     const gatewayService = require('../services/gatewayService');
     const transactionService = require('../services/transactionService');
 
-    const gatewayStats = gatewayService.getGatewayStats();
+    const gatewayHealthSnapshot = gatewayService.getGatewayHealthSnapshot();
     const transactionStats = transactionService.getTransactionStats();
-    const allGatewaysUnhealthy = gatewayService.areAllGatewaysUnhealthy(requestLogger);
+
+    // Check if all gateways are unhealthy
+    const allUnhealthy = Object.values(gatewayHealthSnapshot).every(gateway => !gateway.is_healthy);
+    const overallStatus = allUnhealthy ? 'unhealthy' : 'healthy';
 
     const gatewayHealth = {
-      status: allGatewaysUnhealthy ? 'DEGRADED' : 'OK',
+      status: overallStatus,
       service: 'payment-service',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
       version: '1.0.0',
-      all_gateways_unhealthy: allGatewaysUnhealthy,
-      gateways: gatewayStats,
+      all_gateways_unhealthy: allUnhealthy,
+      gateways: gatewayHealthSnapshot,
       transactions: transactionStats,
       request_id: req.requestId
     };
 
     requestLogger.info('Gateway health check requested', {
       status: gatewayHealth.status,
-      all_gateways_unhealthy: allGatewaysUnhealthy,
+      all_gateways_unhealthy: allUnhealthy,
       uptime: gatewayHealth.uptime,
       total_transactions: transactionStats.total_transactions
     });
@@ -54,16 +40,12 @@ class GatewayHealthController {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const gatewayService = require('../services/gatewayService');
 
-    const gatewayStats = gatewayService.getGatewayStats();
-    const allGatewaysUnhealthy = gatewayService.areAllGatewaysUnhealthy(requestLogger);
+    const gatewayStats = gatewayService.getGatewayHealthSnapshot();
 
-    requestLogger.info('Gateway stats requested', {
-      all_gateways_unhealthy: allGatewaysUnhealthy
-    });
+    requestLogger.info('Gateway statistics requested');
 
     res.status(200).json({
       gateway_stats: gatewayStats,
-      all_gateways_unhealthy: allGatewaysUnhealthy,
       timestamp: new Date().toISOString(),
       request_id: req.requestId
     });

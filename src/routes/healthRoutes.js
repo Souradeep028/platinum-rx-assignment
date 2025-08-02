@@ -8,4 +8,9 @@ router.get('/',
   gatewayHealthController.getHealth
 );
 
+router.get('/stats',
+  validateMethod(['GET']),
+  gatewayHealthController.getGatewayStats
+);
+
 module.exports = router; 

@@ -1,523 +1,228 @@
 const logger = require('../utils/logger');
 
+
+const GATEWAY_CONFIG = {
+	// Default gateway configurations
+	DEFAULT_GATEWAYS: [
+		{ name: 'razorpay', weight: 40, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
+		{ name: 'payu', weight: 35, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
+		{ name: 'cashfree', weight: 25, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
+	],
+	
+	// Validation constants
+	MAX_TOTAL_WEIGHT: 100,
+	REQUIRED_FIELDS: ['name', 'weight', 'success_threshold', 'min_requests', 'disable_duration_minutes'],
+	
+	// Health monitoring settings
+	HEALTH_CHECK_INTERVAL_MS: 30000,
+	HISTORY_WINDOW_MS: 30 * 60 * 1000, // 30 minutes
+	
+	// Simulation settings
+	SIMULATION_FAILURE_RATE: 0.1,
+	SIMULATION_MIN_DELAY_MS: 500,
+	SIMULATION_MAX_DELAY_MS: 2000,
+	
+	// Error messages
+	ERROR_MESSAGES: {
+		TOTAL_WEIGHT_EXCEEDED: 'Total gateway weights exceed 100%',
+		INVALID_CONFIG: 'Invalid config for',
+		ALL_GATEWAYS_UNHEALTHY: 'All gateways are unhealthy',
+		SIMULATED_FAILURE: 'Simulated failure',
+		UPDATE_ACTION_REQUIRES_PARAMS: 'monitorGatewayHealthStatus: update action requires name and success parameters',
+		UNKNOWN_ACTION: 'monitorGatewayHealthStatus: unknown action',
+		UNKNOWN_STATE_ACTION: 'manageGatewayState: unknown action'
+	},
+	
+	// Default values
+	DEFAULT_SUCCESS_RATE: 1.0,
+	DEFAULT_STATS: {
+		total_requests: 0,
+		successful_requests: 0,
+		failed_requests: 0,
+		request_history: [],
+		last_updated: new Date()
+	}
+};
+
 class GatewayService {
-  constructor() {
-    this.gateways = new Map();
-    this.healthStats = new Map();
-    this.healthCheckInterval = null;
-    this.initializeGateways();
-    this.startHealthMonitoring();
-  }
+	constructor() {
+		this.gateways = new Map();
+		this.healthStats = new Map();
+		this.healthCheckInterval = null;
+		this.validateAndSetConfig(GATEWAY_CONFIG.DEFAULT_GATEWAYS);
+		this.monitorGatewayHealthStatus('start');
+	}
 
-  initializeGateways() {
-    const gatewayConfigs = [
-      { name: 'razorpay', weight: 40, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
-      { name: 'payu', weight: 35, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 },
-      { name: 'cashfree', weight: 25, success_threshold: 0.9, min_requests: 10, disable_duration_minutes: 30 }
-    ];
+	validateAndSetConfig(newConfigs) {
+		const totalWeight = newConfigs.reduce((sum, config) => sum + config.weight, 0);
+		if (totalWeight > GATEWAY_CONFIG.MAX_TOTAL_WEIGHT) throw new Error(GATEWAY_CONFIG.ERROR_MESSAGES.TOTAL_WEIGHT_EXCEEDED);
 
-    gatewayConfigs.forEach(config => {
-      this.gateways.set(config.name, {
-        name: config.name,
-        weight: config.weight,
-        success_threshold: config.success_threshold,
-        min_requests: config.min_requests,
-        disable_duration_minutes: config.disable_duration_minutes,
-        is_healthy: true,
-        disabled_until: null,
-        disabled_at: null
-      });
+		newConfigs.forEach(config => {
+			if (GATEWAY_CONFIG.REQUIRED_FIELDS.some(field => !config[field])) throw new Error(`${GATEWAY_CONFIG.ERROR_MESSAGES.INVALID_CONFIG} ${config.name}`);
+		});
 
-      this.healthStats.set(config.name, {
-        total_requests: 0,
-        successful_requests: 0,
-        failed_requests: 0,
-        last_updated: new Date(),
-        request_history: [] // Array of { timestamp, success } objects for sliding window
-      });
-    });
+		const existingStats = new Map(this.healthStats);
+		this.gateways.clear();
+		this.healthStats.clear();
 
-    logger.info('Gateways initialized', { gateways: Array.from(this.gateways.keys()) });
-  }
+		newConfigs.forEach(config => {
+			this.gateways.set(config.name, { ...config, is_healthy: true, disabled_until: null });
+			this.healthStats.set(config.name, existingStats.get(config.name) || { ...GATEWAY_CONFIG.DEFAULT_STATS });
+		});
 
-  startHealthMonitoring() {
-    // Run health checks every 30 seconds
-    this.healthCheckInterval = setInterval(() => {
-      this.performHealthChecks();
-    }, 30000);
+		logger.info('Configs updated', { configs: newConfigs });
+	}
 
-    logger.info('Health monitoring started with 30-second intervals');
-  }
+	selectHealthyGateway() {
+		const healthyCandidates = Array.from(this.gateways.values())
+			.filter(gateway => gateway.is_healthy && (!gateway.disabled_until || new Date() > gateway.disabled_until));
+		if (!healthyCandidates.length) throw new Error(GATEWAY_CONFIG.ERROR_MESSAGES.ALL_GATEWAYS_UNHEALTHY);
 
-  stopHealthMonitoring() {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
-      logger.info('Health monitoring stopped');
-    }
-  }
+		const totalWeight = healthyCandidates.reduce((sum, gateway) => sum + gateway.weight, 0);
+		let randomValue = Math.random() * totalWeight;
+		let selectedGatewayName = healthyCandidates.find(gateway => (randomValue -= gateway.weight) <= 0)?.name || healthyCandidates[0].name;
 
-  performHealthChecks() {
-    this.gateways.forEach((gateway, gatewayName) => {
-      this.checkGatewayHealth(gatewayName);
-    });
-  }
+		const gatewayStats = this.healthStats.get(selectedGatewayName);
+		if (gatewayStats) {
+			gatewayStats.total_requests++;
+			gatewayStats.last_updated = new Date();
+			logger.info('Gateway selected for transaction', { gateway: selectedGatewayName, total_requests: gatewayStats.total_requests });
+		}
 
-  selectGateway(requestLogger = null) {
-    const log = requestLogger || logger;
-    
-    // Only select gateways that are healthy and not disabled
-    const healthyGateways = Array.from(this.gateways.values())
-      .filter(gateway => {
-        const isHealthy = gateway.is_healthy;
-        const isNotDisabled = !gateway.disabled_until || new Date() > gateway.disabled_until;
-        
-        if (!isHealthy || !isNotDisabled) {
-          log.debug('Gateway excluded from selection', {
-            gateway: gateway.name,
-            is_healthy: isHealthy,
-            disabled_until: gateway.disabled_until,
-            current_time: new Date()
-          });
-        }
-        
-        return isHealthy && isNotDisabled;
-      });
+		return selectedGatewayName;
+	}
 
-    if (healthyGateways.length === 0) {
-      log.error('All gateways are unhealthy - no gateways available for selection');
-      const allGateways = Array.from(this.gateways.values());
-      const unhealthyGateways = allGateways.map(gateway => ({
-        name: gateway.name,
-        is_healthy: gateway.is_healthy,
-        disabled_until: gateway.disabled_until,
-        success_rate: this.getSuccessRate(gateway.name)
-      }));
-      
-      throw new Error('All gateways are unhealthy');
-    }
+	simulateTransaction(gatewayName, orderId = null) {
+		return new Promise((resolve, reject) => {
+			setTimeout(() => {
+				const isSuccessful = Math.random() > GATEWAY_CONFIG.SIMULATION_FAILURE_RATE;
+				logger.info('Simulated payment', { gateway: gatewayName, success: isSuccessful });
+				isSuccessful ? resolve({ gateway: gatewayName, success: isSuccessful }) : reject(new Error(GATEWAY_CONFIG.ERROR_MESSAGES.SIMULATED_FAILURE));
+			}, Math.random() * (GATEWAY_CONFIG.SIMULATION_MAX_DELAY_MS - GATEWAY_CONFIG.SIMULATION_MIN_DELAY_MS) + GATEWAY_CONFIG.SIMULATION_MIN_DELAY_MS);
+		});
+	}
 
-    const totalWeight = healthyGateways.reduce((sum, gateway) => sum + gateway.weight, 0);
-    let random = Math.random() * totalWeight;
+	monitorGatewayHealthStatus(action, gatewayName = null, isSuccessful = null) {
+		const actionHandlers = {
+			start: () => {
+				if (!this.healthCheckInterval) {
+					this.healthCheckInterval = setInterval(() => this.monitorGatewayHealthStatus('check'), GATEWAY_CONFIG.HEALTH_CHECK_INTERVAL_MS);
+					logger.info('Health monitoring started');
+				}
+			},
+			stop: () => {
+				if (this.healthCheckInterval) {
+					clearInterval(this.healthCheckInterval);
+					this.healthCheckInterval = null;
+					logger.info('Health monitoring stopped');
+				}
+			},
+			check: () => {
+				this.gateways.forEach((gateway, gatewayName) => {
+					const gatewayStats = this.healthStats.get(gatewayName);
+					if (!gatewayStats) return;
 
-    for (const gateway of healthyGateways) {
-      random -= gateway.weight;
-      if (random <= 0) {
-        log.info('Gateway selected', { 
-          gateway: gateway.name, 
-          weight: gateway.weight,
-          available_gateways: healthyGateways.map(g => g.name)
-        });
-        return gateway.name;
-      }
-    }
+					const recentHistory = gatewayStats.request_history.filter(record => record.timestamp > Date.now() - GATEWAY_CONFIG.HISTORY_WINDOW_MS);
+					const successRate = recentHistory.filter(record => record.success).length / (recentHistory.length || 1);
+					const shouldDisable = recentHistory.length >= gateway.min_requests && successRate < gateway.success_threshold;
+					const shouldReenable = (!gateway.disabled_until || new Date() > gateway.disabled_until) && successRate >= gateway.success_threshold;
 
-    return healthyGateways[0].name;
-  }
+					if (shouldDisable && gateway.is_healthy) {
+						gateway.is_healthy = false;
+						gateway.disabled_until = new Date(Date.now() + gateway.disable_duration_minutes * 60 * 1000);
+						logger.warn('Gateway disabled', { gateway: gatewayName, successRate });
+					} else if (!gateway.is_healthy && shouldReenable) {
+						this.manageGatewayState(gatewayName, 'reset');
+						logger.info('Gateway re-enabled', { gateway: gatewayName });
+					}
+				});
+			},
+			update: () => {
+				if (!gatewayName || isSuccessful === null) {
+					logger.warn(GATEWAY_CONFIG.ERROR_MESSAGES.UPDATE_ACTION_REQUIRES_PARAMS);
+					return;
+				}
+				const gatewayStats = this.healthStats.get(gatewayName);
+				if (!gatewayStats) return;
 
-  updateHealthStats(gatewayName, success, requestLogger = null) {
-    const log = requestLogger || logger;
-    
-    const stats = this.healthStats.get(gatewayName);
-    if (!stats) return;
+				gatewayStats.request_history.push({ timestamp: Date.now(), success: isSuccessful });
+				gatewayStats.request_history = gatewayStats.request_history.filter(record => record.timestamp > Date.now() - GATEWAY_CONFIG.HISTORY_WINDOW_MS);
+				gatewayStats.last_updated = new Date();
+				isSuccessful ? gatewayStats.successful_requests++ : gatewayStats.failed_requests++;
+			}
+		};
 
-    const timestamp = new Date();
-    
-    // If success is null, this is a request initiation (not a callback)
-    if (success === null) {
-      // Only increment total requests, don't add to history or update success/failure counts
-      stats.total_requests++;
-      stats.last_updated = timestamp;
-      
-      log.info('Request initiated with gateway', { 
-        gateway: gatewayName, 
-        total_requests: stats.total_requests
-      });
-      return;
-    }
-    
-    // Add to request history for sliding window
-    stats.request_history.push({
-      timestamp: timestamp,
-      success: success
-    });
-    
-    // Clean up old requests (older than 30 minutes)
-    const thirtyMinutesAgo = new Date(timestamp.getTime() - 30 * 60 * 1000);
-    stats.request_history = stats.request_history.filter(
-      request => request.timestamp > thirtyMinutesAgo
-    );
-    
-    // Update success/failure counts for health monitoring (but NOT total_requests)
-    if (success) {
-      stats.successful_requests++;
-    } else {
-      stats.failed_requests++;
-    }
-    stats.last_updated = timestamp;
+		if (actionHandlers[action]) {
+			actionHandlers[action]();
+		} else {
+			logger.warn(`${GATEWAY_CONFIG.ERROR_MESSAGES.UNKNOWN_ACTION} '${action}'`);
+		}
+	}
 
-    // Immediately check health after updating stats
-    this.checkGatewayHealth(gatewayName, requestLogger);
-    
-    log.info('Callback received - health stats updated', { 
-      gateway: gatewayName, 
-      success, 
-      window_success_rate: this.getWindowSuccessRate(gatewayName),
-      total_requests: stats.total_requests,
-      window_requests: stats.request_history.length,
-      successful_requests: stats.successful_requests,
-      failed_requests: stats.failed_requests
-    });
-  }
+	manageGatewayState(gatewayName, action, options = {}) {
+		const { isEnabled, duration, resetStats = false } = options;
+		
+		if (gatewayName === null && action === 'reset') {
+			this.gateways.forEach((_, gatewayName) => this.manageGatewayState(gatewayName, 'reset'));
+			return;
+		}
 
-  getSuccessRate(gatewayName) {
-    const stats = this.healthStats.get(gatewayName);
-    if (!stats || (stats.successful_requests + stats.failed_requests) === 0) return 1.0;
-    return stats.successful_requests / (stats.successful_requests + stats.failed_requests);
-  }
+		const gateway = this.gateways.get(gatewayName);
+		if (!gateway) return;
 
-  getWindowSuccessRate(gatewayName) {
-    const stats = this.healthStats.get(gatewayName);
-    if (!stats || stats.request_history.length === 0) return 1.0;
-    
-    const successfulRequests = stats.request_history.filter(request => request.success).length;
-    return successfulRequests / stats.request_history.length;
-  }
+		switch (action) {
+			case 'set':
+				if (isEnabled) {
+					gateway.is_healthy = true;
+					gateway.disabled_until = null;
+					if (resetStats) {
+						this.manageGatewayState(gatewayName, 'reset');
+					}
+				} else {
+					gateway.is_healthy = false;
+					gateway.disabled_until = new Date(Date.now() + (duration || gateway.disable_duration_minutes) * 60 * 1000);
+				}
+				break;
+				
+			case 'reset':
+				const gatewayStats = this.healthStats.get(gatewayName);
+				if (gatewayStats) {
+					gatewayStats.total_requests = 0;
+					gatewayStats.successful_requests = 0;
+					gatewayStats.failed_requests = 0;
+					gatewayStats.request_history = [];
+					gatewayStats.last_updated = new Date();
+				}
+				
+				gateway.is_healthy = true;
+				gateway.disabled_until = null;
+				break;
+				
+			default:
+				logger.warn(`${GATEWAY_CONFIG.ERROR_MESSAGES.UNKNOWN_STATE_ACTION} '${action}'`);
+		}
+	}
 
-  checkGatewayHealth(gatewayName, requestLogger = null) {
-    const log = requestLogger || logger;
-    
-    const gateway = this.gateways.get(gatewayName);
-    const stats = this.healthStats.get(gatewayName);
-    
-    if (!gateway || !stats) return;
+	getGatewayHealthSnapshot(gatewayName = null) {
+		const healthSnapshot = {};
+		this.gateways.forEach((gateway, gatewayName) => {
+			const gatewayStats = this.healthStats.get(gatewayName);
+			const requestHistory = gatewayStats?.request_history || [];
+			const recentHistory = requestHistory.filter(record => record.timestamp > Date.now() - GATEWAY_CONFIG.HISTORY_WINDOW_MS);
+			const successRate = recentHistory.length > 0 
+				? recentHistory.filter(record => record.success).length / recentHistory.length 
+				: GATEWAY_CONFIG.DEFAULT_SUCCESS_RATE;
+			
+			healthSnapshot[gatewayName] = {
+				is_healthy: gateway.is_healthy, disabled_until: gateway.disabled_until, success_rate: successRate,
+				window_count: recentHistory.length, weight: gateway.weight, total_requests: gatewayStats?.total_requests || 0,
+				recent_success_callbacks: recentHistory.filter(record => record.success).length,
+				recent_failure_callbacks: recentHistory.filter(record => !record.success).length
+			};
+		});
 
-    const windowSuccessRate = this.getWindowSuccessRate(gatewayName);
-    const windowRequestCount = stats.request_history.length;
-    const wasHealthy = gateway.is_healthy;
-    const isCurrentlyDisabled = gateway.disabled_until && new Date() >= gateway.disabled_until;
-
-    // Check if gateway should be disabled due to low success rate
-    // Disable when success rate drops below threshold in 30-min window, but only after minimum requests
-    if (windowRequestCount >= gateway.min_requests && windowSuccessRate < gateway.success_threshold && wasHealthy) {
-      gateway.is_healthy = false;
-      gateway.disabled_until = new Date(Date.now() + gateway.disable_duration_minutes * 60 * 1000);
-      gateway.disabled_at = new Date();
-      
-      log.warn('Gateway disabled due to low success rate', {
-        gateway: gatewayName,
-        window_success_rate: windowSuccessRate,
-        window_request_count: windowRequestCount,
-        min_requests: gateway.min_requests,
-        threshold: gateway.success_threshold,
-        disabled_until: gateway.disabled_until,
-        disabled_at: gateway.disabled_at
-      });
-    } 
-    // Check if gateway should be re-enabled
-    else if (!wasHealthy) {
-      let shouldReEnable = false;
-      let reason = '';
-      
-      // Re-enable if success rate improved in window
-      if (windowRequestCount > 0 && windowSuccessRate >= gateway.success_threshold) {
-        shouldReEnable = true;
-        reason = 'window_success_rate_improved';
-      }
-      // Re-enable if timeout period has passed
-      else if (isCurrentlyDisabled) {
-        shouldReEnable = true;
-        reason = 'timeout';
-      }
-      
-      if (shouldReEnable) {
-        // Reset counters when re-enabling
-        this.resetGatewayCounters(gatewayName, requestLogger);
-        
-        gateway.is_healthy = true;
-        gateway.disabled_until = null;
-        gateway.disabled_at = null;
-        
-        log.info('Gateway re-enabled', { 
-          gateway: gatewayName,
-          window_success_rate: windowSuccessRate,
-          window_request_count: windowRequestCount,
-          reason: reason
-        });
-      }
-    }
-  }
-
-  resetGatewayCounters(gatewayName, requestLogger = null) {
-    const log = requestLogger || logger;
-    
-    const stats = this.healthStats.get(gatewayName);
-    if (!stats) return;
-
-    // Reset all counters to initial state
-    stats.total_requests = 0;
-    stats.successful_requests = 0;
-    stats.failed_requests = 0;
-    stats.request_history = [];
-    stats.last_updated = new Date();
-
-    log.info('Gateway counters reset', { 
-      gateway: gatewayName,
-      total_requests: stats.total_requests,
-      successful_requests: stats.successful_requests,
-      failed_requests: stats.failed_requests,
-      window_request_count: stats.request_history.length
-    });
-  }
-
-  resetAllGateways(requestLogger = null) {
-    const log = requestLogger || logger;
-    
-    this.gateways.forEach(gateway => {
-      gateway.is_healthy = true;
-      gateway.disabled_until = null;
-      gateway.disabled_at = null;
-    });
-
-    // Reset counters for all gateways
-    this.gateways.forEach((gateway, gatewayName) => {
-      this.resetGatewayCounters(gatewayName, requestLogger);
-    });
-
-    log.info('All gateways reset to healthy state');
-  }
-
-  getGatewayStats() {
-    const stats = {};
-    this.gateways.forEach((gateway, name) => {
-      const healthStats = this.healthStats.get(name);
-      const isCurrentlyDisabled = gateway.disabled_until && new Date() >= gateway.disabled_until;
-      
-      // Get callback statistics from transaction service
-      const transactionService = require('./transactionService');
-      const transactionStats = transactionService.getTransactionStats();
-      const gatewayCallbacks = transactionStats.by_gateway[name] || { successful: 0, failed: 0 };
-      
-      stats[name] = {
-        name: gateway.name,
-        weight: gateway.weight,
-        is_healthy: gateway.is_healthy,
-        is_disabled: !gateway.is_healthy || isCurrentlyDisabled,
-        disabled_until: gateway.disabled_until,
-        disabled_at: gateway.disabled_at,
-        success_rate: this.getSuccessRate(name),
-        window_success_rate: this.getWindowSuccessRate(name),
-        window_request_count: healthStats ? healthStats.request_history.length : 0,
-        total_requests: healthStats ? healthStats.total_requests : 0,
-        successful_requests: healthStats ? healthStats.successful_requests : 0,
-        failed_requests: healthStats ? healthStats.failed_requests : 0,
-        recent_success_callbacks: gatewayCallbacks.successful || 0,
-        recent_failure_callbacks: gatewayCallbacks.failed || 0,
-        last_updated: healthStats ? healthStats.last_updated : null,
-        threshold: gateway.success_threshold,
-        min_requests: gateway.min_requests,
-        disable_duration_minutes: gateway.disable_duration_minutes
-      };
-    });
-    return stats;
-  }
-
-  simulatePayment(gatewayName, orderId, requestLogger = null) {
-    const log = requestLogger || logger;
-    
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const success = Math.random() > 0.1; // 90% success rate
-        
-        // Note: Health stats are only updated via callback API, not during simulation
-        log.info('Payment simulation completed', {
-          gateway: gatewayName,
-          success,
-          order_id: orderId
-        });
-
-        if (success) {
-          resolve({
-            success: true,
-            order_id: orderId,
-            gateway: gatewayName
-          });
-        } else {
-          reject(new Error('Payment simulation failed'));
-        }
-      }, Math.random() * 2000 + 500); // Random delay between 500ms and 2.5s
-    });
-  }
-
-  // Method to manually disable a gateway for testing
-  disableGateway(gatewayName, durationMinutes = null, requestLogger = null) {
-    const log = requestLogger || logger;
-    const gateway = this.gateways.get(gatewayName);
-    
-    if (!gateway) {
-      log.error('Gateway not found for manual disable', { gateway: gatewayName });
-      return false;
-    }
-
-    // Use configured duration if not specified
-    const disableDuration = durationMinutes || gateway.disable_duration_minutes;
-
-    gateway.is_healthy = false;
-    gateway.disabled_until = new Date(Date.now() + disableDuration * 60 * 1000);
-    gateway.disabled_at = new Date();
-    
-    log.info('Gateway manually disabled', {
-      gateway: gatewayName,
-      disabled_until: gateway.disabled_until,
-      duration_minutes: disableDuration
-    });
-    
-    return true;
-  }
-
-  // Method to manually enable a gateway
-  enableGateway(gatewayName, requestLogger = null) {
-    const log = requestLogger || logger;
-    const gateway = this.gateways.get(gatewayName);
-    
-    if (!gateway) {
-      log.error('Gateway not found for manual enable', { gateway: gatewayName });
-      return false;
-    }
-
-    // Reset counters when manually enabling
-    this.resetGatewayCounters(gatewayName, requestLogger);
-    
-    gateway.is_healthy = true;
-    gateway.disabled_until = null;
-    gateway.disabled_at = null;
-    
-    log.info('Gateway manually enabled', { gateway: gatewayName });
-    
-    return true;
-  }
-
-  // Method to check if all gateways are unhealthy
-  areAllGatewaysUnhealthy(requestLogger = null) {
-    const log = requestLogger || logger;
-    
-    const healthyGateways = Array.from(this.gateways.values())
-      .filter(gateway => {
-        const isHealthy = gateway.is_healthy;
-        const isNotDisabled = !gateway.disabled_until || new Date() > gateway.disabled_until;
-        return isHealthy && isNotDisabled;
-      });
-
-    const allUnhealthy = healthyGateways.length === 0;
-    
-    if (allUnhealthy) {
-      log.warn('All gateways are currently unhealthy');
-    }
-    
-    return allUnhealthy;
-  }
-
-  // Method to update gateway configurations
-  updateGatewayConfigs(newConfigs, requestLogger = null) {
-    const log = requestLogger || logger;
-    
-    // Validate that all weights sum to 100 or less
-    const totalWeight = newConfigs.reduce((sum, config) => sum + config.weight, 0);
-    if (totalWeight > 100) {
-      throw new Error(`Total gateway weights (${totalWeight}%) cannot exceed 100%`);
-    }
-
-    // Validate that all required fields are present
-    newConfigs.forEach(config => {
-      if (!config.name || !config.weight || !config.success_threshold || 
-          !config.min_requests || !config.disable_duration_minutes) {
-        throw new Error(`Missing required configuration fields for gateway: ${config.name}`);
-      }
-      
-      if (config.weight < 0 || config.weight > 100) {
-        throw new Error(`Weight must be between 0 and 100 for gateway: ${config.name}`);
-      }
-      
-      if (config.success_threshold < 0 || config.success_threshold > 1) {
-        throw new Error(`Success threshold must be between 0 and 1 for gateway: ${config.name}`);
-      }
-      
-      if (config.min_requests < 1) {
-        throw new Error(`Minimum requests must be at least 1 for gateway: ${config.name}`);
-      }
-      
-      if (config.disable_duration_minutes < 1) {
-        throw new Error(`Disable duration must be at least 1 minute for gateway: ${config.name}`);
-      }
-    });
-
-    // Stop health monitoring temporarily
-    this.stopHealthMonitoring();
-
-    // Store existing health stats to preserve them
-    const existingHealthStats = new Map();
-    this.healthStats.forEach((stats, gatewayName) => {
-      existingHealthStats.set(gatewayName, { ...stats });
-    });
-
-    // Clear existing gateways but preserve health stats
-    this.gateways.clear();
-
-    // Initialize with new configurations while preserving health stats
-    newConfigs.forEach(config => {
-      this.gateways.set(config.name, {
-        name: config.name,
-        weight: config.weight,
-        success_threshold: config.success_threshold,
-        min_requests: config.min_requests,
-        disable_duration_minutes: config.disable_duration_minutes,
-        is_healthy: true,
-        disabled_until: null,
-        disabled_at: null
-      });
-
-      // Preserve existing health stats or initialize new ones
-      const existingStats = existingHealthStats.get(config.name);
-      this.healthStats.set(config.name, existingStats || {
-        total_requests: 0,
-        successful_requests: 0,
-        failed_requests: 0,
-        last_updated: new Date(),
-        request_history: []
-      });
-    });
-
-    // Restart health monitoring
-    this.startHealthMonitoring();
-
-    log.info('Gateway configurations updated', {
-      gateways: newConfigs.map(config => config.name),
-      total_weight: totalWeight,
-      configs: newConfigs
-    });
-
-    return {
-      message: 'Gateway configurations updated successfully',
-      gateways: Array.from(this.gateways.keys()),
-      total_weight: totalWeight,
-      configs: newConfigs
-    };
-  }
-
-  // Method to get current gateway configurations
-  getGatewayConfigs() {
-    const configs = [];
-    this.gateways.forEach((gateway, name) => {
-      configs.push({
-        name: gateway.name,
-        weight: gateway.weight,
-        success_threshold: gateway.success_threshold,
-        min_requests: gateway.min_requests,
-        disable_duration_minutes: gateway.disable_duration_minutes
-      });
-    });
-    return configs;
-  }
+		return gatewayName ? healthSnapshot[gatewayName] : healthSnapshot;
+	}
 }
 
-module.exports = new GatewayService(); 
+module.exports = new GatewayService();
