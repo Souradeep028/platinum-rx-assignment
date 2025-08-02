@@ -78,7 +78,6 @@ class TransactionController {
 
   async getTransactionStats(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    const gatewayService = require('../services/gatewayService');
 
     const transactionStats = transactionService.getTransactionStats();
     const gatewayStats = gatewayService.getGatewayHealthSnapshot();

@@ -1,10 +1,10 @@
 const logger = require('../utils/logger');
+const gatewayService = require('../services/gatewayService');
+const transactionService = require('../services/transactionService');
 
 class GatewayHealthController {
   async getHealth(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    const gatewayService = require('../services/gatewayService');
-    const transactionService = require('../services/transactionService');
 
     // Trigger health check logic to re-enable gateways if time has elapsed
     gatewayService.monitorGatewayHealthStatus('check');
@@ -41,7 +41,6 @@ class GatewayHealthController {
 
   async getGatewayStats(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    const gatewayService = require('../services/gatewayService');
 
     // Trigger health check logic to re-enable gateways if time has elapsed
     gatewayService.monitorGatewayHealthStatus('check');
@@ -59,8 +58,6 @@ class GatewayHealthController {
 
   async resetApplication(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    const gatewayService = require('../services/gatewayService');
-    const transactionService = require('../services/transactionService');
 
     // Reset all gateways to healthy state
     gatewayService.manageGatewayState(null, 'reset');
@@ -88,7 +85,6 @@ class GatewayHealthController {
 
   async getGatewayConfigs(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    const gatewayService = require('../services/gatewayService');
 
     const configs = Array.from(gatewayService.gateways.values()).map(gateway => ({
       name: gateway.name,
@@ -109,8 +105,7 @@ class GatewayHealthController {
 
   async updateGatewayConfigs(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    const gatewayService = require('../services/gatewayService');
-
+    
     const { gateway_configs } = req.body;
 
     if (!gateway_configs || !Array.isArray(gateway_configs)) {

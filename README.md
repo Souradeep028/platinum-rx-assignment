@@ -16,7 +16,7 @@ DEMO LINK: https://platinum-rx-assignment-production.up.railway.app/
 1. **Clone the repository**
    ```bash
    git clone https://github.com/Souradeep028/platinum-rx-assignment
-   cd payment-service
+   cd platinum-rx-assignment
    ```
 
 2. **Install dependencies**
@@ -87,6 +87,8 @@ The test suite covers:
 - **Weighted Load Distribution**: Smart routing based on gateway weights and health
 - **Transaction Management**: Complete transaction lifecycle management
 - **Real-time Statistics**: Comprehensive transaction and gateway performance metrics
+- **Enhanced Error Handling**: Improved error responses with request IDs and detailed information
+- **Simulation Endpoints**: Test endpoints for simulating success and failure scenarios
 
 ## Gateway Selection Algorithm
 
@@ -126,7 +128,7 @@ const gatewayConfigs = [
 
 ### 1. Initiate Transaction
 
-**POST** `/transactions/initiate`
+**POST** `/transactions/initiate` or **POST** `/transactions`
 
 Creates a new payment transaction with intelligent gateway selection.
 
@@ -191,9 +193,18 @@ Creates a new payment transaction with intelligent gateway selection.
 {
   "order_id": "ORD123",
   "amount": 499.0,
+  "payment_instrument": {
+    "type": "card",
+    "card_number": "4111111111111111",
+    "expiry": "12/25",
+    "cvv": "123",
+    "card_holder_name": "John Doe"
+  },
   "selected_gateway": "razorpay",
   "status": "pending",
-  "created_at": "2024-01-15T10:30:00.000Z"
+  "created_at": "2024-01-15T10:30:00.000Z",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12345"
 }
 ```
 
@@ -216,15 +227,66 @@ Updates transaction status and gateway health statistics.
 **Response:**
 ```json
 {
-  "message": "Transaction status updated successfully",
+  "message": "Callback processed successfully",
   "order_id": "ORD123",
-  "status": "success",
   "gateway": "razorpay",
-  "updated_at": "2024-01-15T10:35:00.000Z"
+  "success": true,
+  "timestamp": "2024-01-15T10:35:00.000Z",
+  "request_id": "req-12346"
 }
 ```
 
-### 3. Bulk Operations
+### 3. Simulation Endpoints
+
+**POST** `/transactions/simulate-success`
+
+Simulates a successful callback for testing purposes.
+
+**Sample Payload:**
+```json
+{
+  "order_id": "ORD123",
+  "gateway": "razorpay"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Success callback simulation completed",
+  "order_id": "ORD123",
+  "gateway": "razorpay",
+  "success": true,
+  "timestamp": "2024-01-15T10:35:00.000Z",
+  "request_id": "req-12347"
+}
+```
+
+**POST** `/transactions/simulate-failure`
+
+Simulates a failed callback for testing purposes.
+
+**Sample Payload:**
+```json
+{
+  "order_id": "ORD123",
+  "gateway": "razorpay"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Failure callback simulation completed",
+  "order_id": "ORD123",
+  "gateway": "razorpay",
+  "success": false,
+  "timestamp": "2024-01-15T10:35:00.000Z",
+  "request_id": "req-12348"
+}
+```
+
+### 4. Bulk Operations
 
 **POST** `/transactions/bulk-success`
 
@@ -233,15 +295,12 @@ Processes all pending transactions as successful.
 **Response:**
 ```json
 {
-  "message": "Bulk success operation completed",
-  "processed_count": 5,
-  "results": [
-    {
-      "order_id": "ORD123",
-      "status": "success",
-      "gateway": "razorpay"
-    }
-  ]
+  "message": "Bulk success callback completed",
+  "total_transactions": 5,
+  "success_count": 5,
+  "failure_count": 0,
+  "timestamp": "2024-01-15T10:35:00.000Z",
+  "request_id": "req-12349"
 }
 ```
 
@@ -252,19 +311,92 @@ Processes all pending transactions as failed.
 **Response:**
 ```json
 {
-  "message": "Bulk failure operation completed",
-  "processed_count": 3,
-  "results": [
-    {
-      "order_id": "ORD124",
-      "status": "failure",
-      "gateway": "payu"
-    }
-  ]
+  "message": "Bulk failure callback completed",
+  "total_transactions": 3,
+  "success_count": 3,
+  "failure_count": 0,
+  "timestamp": "2024-01-15T10:35:00.000Z",
+  "request_id": "req-12350"
 }
 ```
 
-### 4. Health Check
+### 5. Transaction Statistics
+
+**GET** `/transactions/stats`
+
+Returns transaction and gateway statistics.
+
+**Response:**
+```json
+{
+  "transaction_stats": {
+    "total_transactions": 245,
+    "by_status": {
+      "pending": 10,
+      "success": 220,
+      "failure": 15
+    },
+    "by_gateway": {
+      "razorpay": {
+        "total": 100,
+        "successful": 95,
+        "failed": 5,
+        "pending": 0
+      }
+    }
+  },
+  "gateway_stats": {
+    "razorpay": {
+      "weight": 40,
+      "is_healthy": true,
+      "window_success_rate": 0.92
+    }
+  },
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12351"
+}
+```
+
+### 6. All Transactions
+
+**GET** `/transactions`
+
+Returns all transactions with statistics.
+
+**Response:**
+```json
+{
+  "transactions": [
+    {
+      "order_id": "ORD123",
+      "amount": 499.0,
+      "payment_instrument": {
+        "type": "card",
+        "card_number": "4111111111111111",
+        "expiry": "12/25",
+        "cvv": "123",
+        "card_holder_name": "John Doe"
+      },
+      "selected_gateway": "razorpay",
+      "status": "completed",
+      "created_at": "2024-01-15T10:30:00.000Z",
+      "updated_at": "2024-01-15T10:35:00.000Z"
+    }
+  ],
+  "transaction_stats": {
+    "total_transactions": 245,
+    "by_status": {
+      "pending": 10,
+      "success": 220,
+      "failure": 15
+    }
+  },
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12352"
+}
+```
+
+### 7. Health Check
 
 **GET** `/health`
 
@@ -279,7 +411,7 @@ Returns basic service health status.
 }
 ```
 
-### 5. Gateway Health Check
+### 8. Gateway Health Check
 
 **GET** `/gateway/health`
 
@@ -339,7 +471,7 @@ Returns detailed gateway health and transaction statistics.
 }
 ```
 
-### 6. Gateway Statistics
+### 9. Gateway Statistics
 
 **GET** `/gateway/stats`
 
@@ -360,7 +492,7 @@ Returns detailed gateway statistics.
 }
 ```
 
-### 7. Application Reset
+### 10. Application Reset
 
 **POST** `/gateway/reset`
 
@@ -377,9 +509,9 @@ Resets all gateways to healthy state and clears all transactions.
 }
 ```
 
-### 8. Gateway Configuration Management
+### 11. Gateway Configuration Management
 
-**GET** `/api/gateways/configs`
+**GET** `/gateway/configs`
 
 Returns current gateway configurations.
 
@@ -398,7 +530,7 @@ Returns current gateway configurations.
 }
 ```
 
-**POST** `/api/gateways/configs`
+**POST** `/gateway/configs`
 
 Updates gateway configurations dynamically.
 
@@ -440,41 +572,6 @@ Updates gateway configurations dynamically.
 }
 ```
 
-### 9. Transaction Statistics
-
-**GET** `/transactions`
-
-Returns transaction and gateway statistics.
-
-**Response:**
-```json
-{
-  "transaction_stats": {
-    "total_transactions": 245,
-    "by_status": {
-      "pending": 10,
-      "success": 220,
-      "failure": 15
-    },
-    "by_gateway": {
-      "razorpay": {
-        "total": 100,
-        "successful": 95,
-        "failed": 5,
-        "pending": 0
-      }
-    }
-  },
-  "gateway_stats": {
-    "razorpay": {
-      "weight": 40,
-      "is_healthy": true,
-      "window_success_rate": 0.92
-    }
-  }
-}
-```
-
 ## Logging
 
 The service uses Winston for structured logging with the following features:
@@ -482,7 +579,7 @@ The service uses Winston for structured logging with the following features:
 - **Console Output**: Colored logs for development
 - **File Logging**: Separate error and combined log files
 - **Structured Data**: JSON format with timestamps and metadata
-- **Request-Specific Logging**: Each request gets a unique logger instance
+- **Request-Specific Logging**: Each request gets a unique logger instance with request ID
 - **Log Levels**: Error, warn, info, debug
 
 Log files are stored in the `logs/` directory:
@@ -509,7 +606,7 @@ The service provides comprehensive statistics via multiple endpoints:
 
 ## Error Handling
 
-The service implements comprehensive error handling:
+The service implements comprehensive error handling with enhanced features:
 
 - **Validation Errors**: 400 Bad Request for invalid input with detailed field-level errors
 - **Not Found**: 404 for missing transactions
@@ -517,7 +614,13 @@ The service implements comprehensive error handling:
 - **Gateway Mismatch**: 400 Bad Request for callback gateway mismatch
 - **All Gateways Unhealthy**: 503 Service Unavailable when no gateways are available
 - **Server Errors**: 500 for internal errors
-- **Structured Responses**: Consistent error format with timestamps and field details
+- **Structured Responses**: Consistent error format with timestamps, request IDs, and field details
+
+### Enhanced Error Response Format:
+All error responses now include:
+- `timestamp`: ISO timestamp of the error
+- `request_id`: Unique request identifier for tracking
+- Detailed error information with field-level validation
 
 ### Validation Error Response Format:
 ```json
@@ -530,7 +633,8 @@ The service implements comprehensive error handling:
       "value": "invalid-format"
     }
   ],
-  "timestamp": "2024-01-15T10:30:00.000Z"
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12345"
 }
 ```
 
@@ -542,7 +646,8 @@ The service implements comprehensive error handling:
   "error": "Transaction already exists for this order_id",
   "order_id": "ORD123",
   "status": "pending",
-  "timestamp": "2024-01-15T10:30:00.000Z"
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12345"
 }
 ```
 
@@ -552,7 +657,8 @@ The service implements comprehensive error handling:
   "error": "Transaction has already been processed",
   "order_id": "ORD123",
   "current_status": "success",
-  "timestamp": "2024-01-15T10:30:00.000Z"
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12345"
 }
 ```
 
@@ -563,7 +669,8 @@ The service implements comprehensive error handling:
   "order_id": "ORD123",
   "expected_gateway": "razorpay",
   "received_gateway": "payu",
-  "timestamp": "2024-01-15T10:30:00.000Z"
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12345"
 }
 ```
 
@@ -578,7 +685,9 @@ The service implements comprehensive error handling:
       "disabled_until": "2024-01-15T11:00:00.000Z"
     }
   },
-  "order_id": "ORD123"
+  "order_id": "ORD123",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "request_id": "req-12345"
 }
 ```
 
@@ -589,6 +698,7 @@ The service implements comprehensive error handling:
 - **Sliding Window Health Checks**: Efficient 30-minute rolling window monitoring
 - **Weighted Routing**: Intelligent load distribution
 - **Real-time Health Updates**: Immediate health stat updates on callback
+- **Request ID Tracking**: Unique request identifiers for better debugging and monitoring
 
 ## Security
 
@@ -598,6 +708,7 @@ The service implements comprehensive error handling:
 - **CORS**: Configurable cross-origin resource sharing
 - **Error Sanitization**: Safe error responses
 - **Request ID Tracking**: Unique request IDs for audit trails
+- **Method Validation**: HTTP method validation for all endpoints
 
 ## Advanced Features
 
@@ -621,9 +732,16 @@ The service implements comprehensive error handling:
 
 ### Enhanced Error Handling
 - **All gateways unhealthy**: Graceful handling when no gateways available
-- **Request-specific logging**: Each request gets unique logger instance
-- **Detailed error responses**: Comprehensive error information
+- **Request-specific logging**: Each request gets unique logger instance with request ID
+- **Detailed error responses**: Comprehensive error information with timestamps
 - **Business rule validation**: Enforces transaction integrity
+- **Method validation**: HTTP method validation for all endpoints
+
+### Simulation Endpoints
+- **Success simulation**: Test successful payment scenarios
+- **Failure simulation**: Test failed payment scenarios
+- **Gateway health impact**: Simulations affect gateway health statistics
+- **Testing support**: Easy testing of different payment scenarios
 
 ## Contributing
 

@@ -1,10 +1,10 @@
 const logger = require('../utils/logger');
+const gatewayService = require('../services/gatewayService');
+const transactionService = require('../services/transactionService');
 
 class GatewayHealthController {
   async getHealth(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    const gatewayService = require('../services/gatewayService');
-    const transactionService = require('../services/transactionService');
 
     const gatewayHealthSnapshot = gatewayService.getGatewayHealthSnapshot();
     const transactionStats = transactionService.getTransactionStats();
@@ -38,7 +38,6 @@ class GatewayHealthController {
 
   async getGatewayStats(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
-    const gatewayService = require('../services/gatewayService');
 
     const gatewayStats = gatewayService.getGatewayHealthSnapshot();
 
