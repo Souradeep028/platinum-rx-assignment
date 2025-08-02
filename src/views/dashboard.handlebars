@@ -762,7 +762,7 @@ async function triggerBulkSuccess() {
     
     try {
         console.log('Triggering bulk success for all pending transactions');
-        const response = await axios.post('/api/transactions/bulk-success');
+        const response = await axios.post('/api/transactions/simulate-bulk-success');
         console.log('Bulk success API response:', response.data);
         
         addGatewayLog(`Bulk success operation completed: ${response.data.processed_count} transactions processed`);
@@ -797,7 +797,7 @@ async function triggerBulkFailure() {
     
     try {
         console.log('Triggering bulk failure for all pending transactions');
-        const response = await axios.post('/api/transactions/bulk-failure');
+        const response = await axios.post('/api/transactions/simulate-bulk-failure');
         console.log('Bulk failure API response:', response.data);
         
         addGatewayLog(`Bulk failure operation completed: ${response.data.processed_count} transactions processed`);

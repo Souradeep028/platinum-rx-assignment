@@ -3,10 +3,84 @@ const gatewayService = require('../services/gatewayService');
 const logger = require('../utils/logger');
 
 class TransactionController {
+  // Helper methods
+  static _createResponse(data, requestId, status = 200) {
+    return {
+      ...data,
+      timestamp: new Date().toISOString(),
+      request_id: requestId
+    };
+  }
+
+  static _createErrorResponse(error, message, requestId, status = 400) {
+    return TransactionController._createResponse({
+      error,
+      message
+    }, requestId, status);
+  }
+
+  static _validateRequiredFields(fields, body) {
+    const missingFields = fields.filter(field => !body[field]);
+    if (missingFields.length > 0) {
+      return {
+        isValid: false,
+        error: `Missing required fields: ${missingFields.join(', ')}`
+      };
+    }
+    return { isValid: true };
+  }
+
+  static _getTransactionOrFail(orderId, requestLogger, context = '') {
+    const transaction = transactionService.getTransaction(orderId);
+    if (!transaction) {
+      requestLogger.warn(`Transaction not found${context}`, { order_id: orderId });
+      return null;
+    }
+    return transaction;
+  }
+
+  static _processTransactionStatus(orderId, status, gateway, requestLogger) {
+    transactionService.updateTransactionStatus(orderId, status, gateway, null, requestLogger);
+    gatewayService.monitorGatewayHealthStatus('update', gateway, status === 'completed');
+  }
+
+  static _processBulkTransactions(status, requestLogger) {
+    const pendingTransactions = transactionService.getPendingTransactions();
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const transaction of pendingTransactions) {
+      try {
+        TransactionController._processTransactionStatus(
+          transaction.order_id,
+          status,
+          transaction.selected_gateway,
+          requestLogger
+        );
+        successCount++;
+      } catch (error) {
+        requestLogger.error(`Failed to process bulk ${status} for transaction`, {
+          order_id: transaction.order_id,
+          error: error.message
+        });
+        failureCount++;
+      }
+    }
+
+    return { successCount, failureCount, totalTransactions: pendingTransactions.length };
+  }
+
   async initiateTransaction(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const { order_id, amount, payment_instrument } = req.body;
     
+    // Validate required fields
+    const validation = TransactionController._validateRequiredFields(['order_id', 'amount', 'payment_instrument'], req.body);
+    if (!validation.isValid) {
+      return res.status(400).json(TransactionController._createErrorResponse('Invalid request data', validation.error, req.requestId));
+    }
+
+    // Select gateway
     let selectedGateway;
     try {
       selectedGateway = gatewayService.selectHealthyGateway();
@@ -21,40 +95,29 @@ class TransactionController {
         gateway_stats: gatewayService.getGatewayHealthSnapshot()
       });
 
-      return res.status(503).json({
-        error: 'All gateways are unhealthy',
-        message: 'No payment gateways are currently available. Please try again later.',
-        gateway_stats: gatewayService.getGatewayHealthSnapshot(),
-        order_id: order_id,
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
+      return res.status(503).json(TransactionController._createErrorResponse(
+        'All gateways are unhealthy',
+        'No payment gateways are currently available. Please try again later.',
+        req.requestId,
+        503
+      ));
     }
 
-    // Gateway selection already updates total requests in selectHealthyGateway method
-
+    // Create transaction
     const transaction = transactionService.createTransaction(
-      order_id,
-      amount,
-      payment_instrument,
-      selectedGateway,
-      requestLogger
+      order_id, amount, payment_instrument, selectedGateway, requestLogger
     );
 
+    // Simulate transaction asynchronously
     gatewayService.simulateTransaction(selectedGateway, order_id)
       .then(result => {
         requestLogger.info('Payment simulation result', {
-          order_id: order_id,
-          gateway: selectedGateway,
-          success: result.success
+          order_id, gateway: selectedGateway, success: result.success
         });
       })
       .catch(error => {
         requestLogger.error('Payment simulation error', {
-          order_id: order_id,
-          gateway: selectedGateway,
-          error: error.message,
-          stack: error.stack
+          order_id, gateway: selectedGateway, error: error.message, stack: error.stack
         });
       });
 
@@ -64,16 +127,14 @@ class TransactionController {
       gateway: transaction.selected_gateway
     });
 
-    res.status(201).json({
+    res.status(201).json(TransactionController._createResponse({
       order_id: transaction.order_id,
       amount: transaction.amount,
       payment_instrument: transaction.payment_instrument,
       selected_gateway: transaction.selected_gateway,
       status: transaction.status,
-      created_at: transaction.created_at,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
+      created_at: transaction.created_at
+    }, req.requestId, 201));
   }
 
   async getAllTransactions(req, res, next) {
@@ -84,251 +145,148 @@ class TransactionController {
 
     requestLogger.info('All transactions requested');
 
-    res.status(200).json({
-      transactions: transactions,
-      transaction_stats: transactionStats,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
+    res.status(200).json(TransactionController._createResponse({
+      transactions,
+      transaction_stats: transactionStats
+    }, req.requestId));
   }
 
   async processCallback(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const { order_id, gateway, status } = req.body;
 
-    if (!order_id || !gateway || !status) {
-      return res.status(400).json({
-        error: 'Invalid callback data',
-        message: 'order_id, gateway, and status are required',
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
+    // Validate required fields
+    const validation = TransactionController._validateRequiredFields(['order_id', 'gateway', 'status'], req.body);
+    if (!validation.isValid) {
+      return res.status(400).json(TransactionController._createErrorResponse('Invalid callback data', validation.error, req.requestId));
     }
 
     const success = status === 'success';
-
-    const transaction = transactionService.getTransaction(order_id);
+    const transaction = TransactionController._getTransactionOrFail(order_id, requestLogger, ' for callback');
     if (!transaction) {
-      requestLogger.warn('Transaction not found for callback', {
-        order_id: order_id,
-        gateway: gateway
-      });
-
-      return res.status(404).json({
-        error: 'Transaction not found',
-        message: `Transaction with order_id ${order_id} not found`,
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
+      return res.status(404).json(TransactionController._createErrorResponse(
+        'Transaction not found',
+        `Transaction with order_id ${order_id} not found`,
+        req.requestId,
+        404
+      ));
     }
 
-    // Update transaction status
-    transactionService.updateTransactionStatus(order_id, success ? 'completed' : 'failed', gateway, null, requestLogger);
-
-    // Update gateway health stats
-    gatewayService.monitorGatewayHealthStatus('update', gateway, success);
+    // Process transaction status
+    TransactionController._processTransactionStatus(order_id, success ? 'completed' : 'failed', gateway, requestLogger);
 
     requestLogger.info('Callback processed successfully', {
-      order_id: order_id,
-      gateway: gateway,
-      success: success,
-      transaction_status: success ? 'completed' : 'failed'
+      order_id, gateway, success, transaction_status: success ? 'completed' : 'failed'
     });
 
-    res.status(200).json({
+    res.status(200).json(TransactionController._createResponse({
       message: 'Callback processed successfully',
-      order_id: order_id,
-      gateway: gateway,
-      success: success,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
+      order_id, gateway, success
+    }, req.requestId));
   }
 
   async simulateSuccessCallback(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const { order_id, gateway } = req.body;
 
-    if (!order_id || !gateway) {
-      return res.status(400).json({
-        error: 'Invalid simulation data',
-        message: 'order_id and gateway are required',
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
+    // Validate required fields
+    const validation = TransactionController._validateRequiredFields(['order_id', 'gateway'], req.body);
+    if (!validation.isValid) {
+      return res.status(400).json(TransactionController._createErrorResponse('Invalid simulation data', validation.error, req.requestId));
     }
 
-    const transaction = transactionService.getTransaction(order_id);
+    const transaction = TransactionController._getTransactionOrFail(order_id, requestLogger, ' for success simulation');
     if (!transaction) {
-      requestLogger.warn('Transaction not found for success simulation', {
-        order_id: order_id,
-        gateway: gateway
-      });
-
-      return res.status(404).json({
-        error: 'Transaction not found',
-        message: `Transaction with order_id ${order_id} not found`,
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
+      return res.status(404).json(TransactionController._createErrorResponse(
+        'Transaction not found',
+        `Transaction with order_id ${order_id} not found`,
+        req.requestId,
+        404
+      ));
     }
 
-    // Update transaction status to completed
-    transactionService.updateTransactionStatus(order_id, 'completed', gateway, null, requestLogger);
-
-    // Update gateway health stats with success
-    gatewayService.monitorGatewayHealthStatus('update', transaction.selected_gateway, true);
+    // Process transaction status
+    TransactionController._processTransactionStatus(order_id, 'completed', gateway, requestLogger);
 
     requestLogger.info('Success callback simulation completed', {
-      order_id: order_id,
-      gateway: gateway,
-      transaction_status: 'completed'
+      order_id, gateway, transaction_status: 'completed'
     });
 
-    res.status(200).json({
+    res.status(200).json(TransactionController._createResponse({
       message: 'Success callback simulation completed',
-      order_id: order_id,
-      gateway: gateway,
-      success: true,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
+      order_id, gateway, success: true
+    }, req.requestId));
   }
 
   async simulateFailureCallback(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const { order_id, gateway } = req.body;
 
-    if (!order_id || !gateway) {
-      return res.status(400).json({
-        error: 'Invalid simulation data',
-        message: 'order_id and gateway are required',
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
+    // Validate required fields
+    const validation = TransactionController._validateRequiredFields(['order_id', 'gateway'], req.body);
+    if (!validation.isValid) {
+      return res.status(400).json(TransactionController._createErrorResponse('Invalid simulation data', validation.error, req.requestId));
     }
 
-    const transaction = transactionService.getTransaction(order_id);
+    const transaction = TransactionController._getTransactionOrFail(order_id, requestLogger, ' for failure simulation');
     if (!transaction) {
-      requestLogger.warn('Transaction not found for failure simulation', {
-        order_id: order_id,
-        gateway: gateway
-      });
-
-      return res.status(404).json({
-        error: 'Transaction not found',
-        message: `Transaction with order_id ${order_id} not found`,
-        timestamp: new Date().toISOString(),
-        request_id: req.requestId
-      });
+      return res.status(404).json(TransactionController._createErrorResponse(
+        'Transaction not found',
+        `Transaction with order_id ${order_id} not found`,
+        req.requestId,
+        404
+      ));
     }
 
-    // Update transaction status to failed
-    transactionService.updateTransactionStatus(order_id, 'failed', gateway, null, requestLogger);
-
-    // Update gateway health stats with failure
-    gatewayService.monitorGatewayHealthStatus('update', transaction.selected_gateway, false);
+    // Process transaction status
+    TransactionController._processTransactionStatus(order_id, 'failed', gateway, requestLogger);
 
     requestLogger.info('Failure callback simulation completed', {
-      order_id: order_id,
-      gateway: gateway,
-      transaction_status: 'failed'
+      order_id, gateway, transaction_status: 'failed'
     });
 
-    res.status(200).json({
+    res.status(200).json(TransactionController._createResponse({
       message: 'Failure callback simulation completed',
-      order_id: order_id,
-      gateway: gateway,
-      success: false,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
+      order_id, gateway, success: false
+    }, req.requestId));
   }
 
   async bulkSuccessCallback(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
 
-    const pendingTransactions = transactionService.getPendingTransactions();
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const transaction of pendingTransactions) {
-      try {
-        transactionService.updateTransactionStatus(
-          transaction.order_id,
-          'completed',
-          transaction.selected_gateway,
-          null,
-          requestLogger
-        );
-        gatewayService.monitorGatewayHealthStatus('update', transaction.selected_gateway, true);
-        successCount++;
-      } catch (error) {
-        requestLogger.error('Failed to process bulk success for transaction', {
-          order_id: transaction.order_id,
-          error: error.message
-        });
-        failureCount++;
-      }
-    }
+    const { successCount, failureCount, totalTransactions } = TransactionController._processBulkTransactions('completed', requestLogger);
 
     requestLogger.info('Bulk success callback completed', {
-      total_transactions: pendingTransactions.length,
+      total_transactions: totalTransactions,
       success_count: successCount,
       failure_count: failureCount
     });
 
-    res.status(200).json({
+    res.status(200).json(TransactionController._createResponse({
       message: 'Bulk success callback completed',
-      total_transactions: pendingTransactions.length,
+      total_transactions: totalTransactions,
       success_count: successCount,
-      failure_count: failureCount,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
+      failure_count: failureCount
+    }, req.requestId));
   }
 
   async bulkFailureCallback(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
 
-    const pendingTransactions = transactionService.getPendingTransactions();
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const transaction of pendingTransactions) {
-      try {
-        transactionService.updateTransactionStatus(
-          transaction.order_id,
-          'failed',
-          transaction.selected_gateway,
-          null,
-          requestLogger
-        );
-        gatewayService.monitorGatewayHealthStatus('update', transaction.selected_gateway, false);
-        successCount++;
-      } catch (error) {
-        requestLogger.error('Failed to process bulk failure for transaction', {
-          order_id: transaction.order_id,
-          error: error.message
-        });
-        failureCount++;
-      }
-    }
+    const { successCount, failureCount, totalTransactions } = TransactionController._processBulkTransactions('failed', requestLogger);
 
     requestLogger.info('Bulk failure callback completed', {
-      total_transactions: pendingTransactions.length,
+      total_transactions: totalTransactions,
       success_count: successCount,
       failure_count: failureCount
     });
 
-    res.status(200).json({
+    res.status(200).json(TransactionController._createResponse({
       message: 'Bulk failure callback completed',
-      total_transactions: pendingTransactions.length,
+      total_transactions: totalTransactions,
       success_count: successCount,
-      failure_count: failureCount,
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
+      failure_count: failureCount
+    }, req.requestId));
   }
 }
 

@@ -10,7 +10,6 @@ const {
   validateBusinessRules
 } = require('../middleware/validation');
 
-// Transaction initiation endpoint
 router.post('/initiate', 
   validateMethod(['POST']),
   sanitizeInput,
@@ -47,14 +46,14 @@ router.post('/simulate-failure',
 router.get('/', validateMethod(['GET']), transactionController.getAllTransactions);
 
 // Bulk operation endpoints
-router.post('/bulk-success',
+router.post('/simulate-bulk-success',
   validateMethod(['POST']),
   sanitizeInput,
   handleValidationErrors,
   transactionController.bulkSuccessCallback
 );
 
-router.post('/bulk-failure',
+router.post('/simulate-bulk-failure',
   validateMethod(['POST']),
   sanitizeInput,
   handleValidationErrors,

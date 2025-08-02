@@ -305,7 +305,7 @@ Simulates a failed callback for testing purposes.
 
 ### 4. Bulk Operations
 
-**POST** `/api/transactions/bulk-success`
+**POST** `/api/transactions/simulate-bulk-success`
 
 Processes all pending transactions as successful.
 
@@ -321,7 +321,7 @@ Processes all pending transactions as successful.
 }
 ```
 
-**POST** `/api/transactions/bulk-failure`
+**POST** `/api/transactions/simulate-bulk-failure`
 
 Processes all pending transactions as failed.
 
