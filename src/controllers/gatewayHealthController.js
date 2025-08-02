@@ -6,6 +6,9 @@ class GatewayHealthController {
     const gatewayService = require('../services/gatewayService');
     const transactionService = require('../services/transactionService');
 
+    // Trigger health check logic to re-enable gateways if time has elapsed
+    gatewayService.monitorGatewayHealthStatus('check');
+
     const gatewayHealthSnapshot = gatewayService.getGatewayHealthSnapshot();
     const transactionStats = transactionService.getTransactionStats();
 
@@ -39,6 +42,9 @@ class GatewayHealthController {
   async getGatewayStats(req, res, next) {
     const requestLogger = logger.createRequestLogger(req.requestId);
     const gatewayService = require('../services/gatewayService');
+
+    // Trigger health check logic to re-enable gateways if time has elapsed
+    gatewayService.monitorGatewayHealthStatus('check');
 
     const gatewayStats = gatewayService.getGatewayHealthSnapshot();
 
@@ -116,20 +122,34 @@ class GatewayHealthController {
       });
     }
 
-    gatewayService.validateAndSetConfig(gateway_configs);
+    try {
+      gatewayService.validateAndSetConfig(gateway_configs);
 
-    requestLogger.info('Gateway configurations updated', {
-      gateways: gateway_configs.map(c => c.name),
-      total_weight: gateway_configs.reduce((sum, c) => sum + c.weight, 0)
-    });
+      requestLogger.info('Gateway configurations updated', {
+        gateways: gateway_configs.map(c => c.name),
+        total_weight: gateway_configs.reduce((sum, c) => sum + c.weight, 0)
+      });
 
-    res.status(200).json({
-      message: 'Gateway configurations updated successfully',
-      gateway_configs: gateway_configs,
-      total_weight: gateway_configs.reduce((sum, c) => sum + c.weight, 0),
-      timestamp: new Date().toISOString(),
-      request_id: req.requestId
-    });
+      res.status(200).json({
+        message: 'Gateway configurations updated successfully',
+        gateway_configs: gateway_configs,
+        total_weight: gateway_configs.reduce((sum, c) => sum + c.weight, 0),
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId
+      });
+    } catch (error) {
+      requestLogger.warn('Failed to update gateway configurations', {
+        error: error.message,
+        gateway_configs: gateway_configs
+      });
+
+      res.status(400).json({
+        error: 'Failed to update gateway configurations',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        request_id: req.requestId
+      });
+    }
   }
 }
 

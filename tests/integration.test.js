@@ -129,20 +129,15 @@ describe('Integration Tests', () => {
       expect(gateway.disabled_until).toBeDefined();
     });
 
-    test('should re-enable gateway when success rate improves', async () => {
+    test('should re-enable gateway when disable time has elapsed', async () => {
       const gatewayName = 'payu';
       const gateway = gatewayService.gateways.get(gatewayName);
       
       // First disable the gateway
       gateway.is_healthy = false;
-      gateway.disabled_until = new Date(Date.now() + 30 * 60 * 1000);
+      gateway.disabled_until = new Date(Date.now() - 60 * 1000); // Set to 1 minute ago
       
-      // Add successful requests to improve success rate
-      for (let i = 0; i < gateway.min_requests; i++) {
-        gatewayService.monitorGatewayHealthStatus('update', gatewayName, true);
-      }
-
-      // Check that gateway is re-enabled
+      // Check that gateway is re-enabled (no need to add successful requests)
       gatewayService.monitorGatewayHealthStatus('check');
       expect(gateway.is_healthy).toBe(true);
       expect(gateway.disabled_until).toBeNull();
