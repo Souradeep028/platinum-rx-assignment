@@ -4,7 +4,6 @@ describe('TransactionService', () => {
   beforeEach(() => {
     // Reset the service state before each test
     transactionService.transactions.clear();
-    transactionService.orderIdToTransactionId.clear();
   });
 
   describe('createTransaction', () => {

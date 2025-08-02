@@ -6,7 +6,6 @@ describe('Business Validation Rules', () => {
   beforeEach(() => {
     // Reset services state
     transactionService.transactions.clear();
-    transactionService.orderIdToTransactionId.clear();
   });
 
   describe('Duplicate Order ID Validation', () => {

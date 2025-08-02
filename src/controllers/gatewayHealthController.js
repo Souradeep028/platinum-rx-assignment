@@ -88,12 +88,15 @@ class GatewayHealthController {
 
     requestLogger.info('Gateway configurations requested');
 
-    response.status(200).json(this._createStandardResponse({ gateway_configs: availableGatewayConfigurations }));
+    response.status(200).json(this._createStandardResponse({ 
+      gateway_configs: availableGatewayConfigurations,
+      sliding_window_minutes: gatewayService.getSlidingWindowMinutes()
+    }));
   }
 
   updateGatewayConfigs = async (request, response) => {
     const requestLogger = this._initializeRequestLogger(request);
-    const { gateway_configs: requestedGatewayConfigurations } = request.body;
+    const { gateway_configs: requestedGatewayConfigurations, sliding_window_minutes } = request.body;
 
     if (!requestedGatewayConfigurations || !Array.isArray(requestedGatewayConfigurations)) {
       return response.status(400).json(this._createErrorResponse(
@@ -103,25 +106,34 @@ class GatewayHealthController {
     }
 
     try {
+      // Update sliding window time if provided
+      if (sliding_window_minutes !== undefined) {
+        gatewayService.setSlidingWindowMinutes(sliding_window_minutes);
+        requestLogger.info('Sliding window time updated', { sliding_window_minutes });
+      }
+
       gatewayService.validateAndSetConfig(requestedGatewayConfigurations);
       const totalGatewayWeight = requestedGatewayConfigurations.reduce((weightSum, gatewayConfig) => weightSum + gatewayConfig.weight, 0);
 
       requestLogger.info('Gateway configurations updated', {
         gateways: requestedGatewayConfigurations.map(gatewayConfig => gatewayConfig.name),
-        total_weight: totalGatewayWeight
+        total_weight: totalGatewayWeight,
+        sliding_window_minutes: sliding_window_minutes || gatewayService.getSlidingWindowMinutes()
       });
 
       const gatewayConfigurationUpdateResponseData = {
         message: 'Gateway configurations updated successfully',
         gateway_configs: requestedGatewayConfigurations,
-        total_weight: totalGatewayWeight
+        total_weight: totalGatewayWeight,
+        sliding_window_minutes: gatewayService.getSlidingWindowMinutes()
       };
 
       response.status(200).json(this._createStandardResponse(gatewayConfigurationUpdateResponseData));
     } catch (configurationError) {
       requestLogger.warn('Failed to update gateway configurations', {
         error: configurationError.message,
-        gateway_configs: requestedGatewayConfigurations
+        gateway_configs: requestedGatewayConfigurations,
+        sliding_window_minutes
       });
 
       response.status(400).json(this._createErrorResponse(

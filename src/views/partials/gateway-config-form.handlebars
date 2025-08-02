@@ -24,6 +24,8 @@
             <div id="gatewayConfigs">
                 <!-- Gateway configuration fields will be dynamically populated here -->
             </div>
+            
+
         </form>
     </div>
 </div>
@@ -115,6 +117,20 @@ async function loadGatewayConfigs() {
     try {
         const response = await axios.get('/api/gateways/configs');
         currentGatewayConfigs = response.data.gateway_configs;
+        
+        // Load sliding window time if available
+        if (response.data.sliding_window_minutes) {
+            const slidingWindowInput = document.getElementById('slidingWindowTime');
+            const currentSlidingWindowSpan = document.getElementById('currentSlidingWindow');
+            
+            if (slidingWindowInput) {
+                slidingWindowInput.value = response.data.sliding_window_minutes;
+            }
+            if (currentSlidingWindowSpan) {
+                currentSlidingWindowSpan.textContent = response.data.sliding_window_minutes;
+            }
+        }
+        
         renderGatewayConfigForm();
     } catch (error) {
         console.error('Failed to load gateway configurations:', error);
@@ -134,7 +150,7 @@ function renderGatewayConfigForm() {
     container.innerHTML = `
         <div class="row">
             ${currentGatewayConfigs.map((config, index) => `
-                <div class="col-lg-4 col-md-6 mb-2">
+                <div class="col-lg-3 col-md-6 mb-2">
                     <div class="gateway-config-card">
                         <div class="gateway-name">
                             <i class="fas fa-credit-card me-2"></i>
@@ -201,6 +217,32 @@ function renderGatewayConfigForm() {
                     </div>
                 </div>
             `).join('')}
+            
+            <!-- Sliding Window Time Configuration -->
+            <div class="col-lg-3 col-md-6 mb-2">
+                <div class="gateway-config-card">
+                    <div class="gateway-name">
+                        <i class="fas fa-clock me-2"></i>
+                        Sliding Window Time
+                    </div>
+                    <div class="config-fields">
+                        <div class="config-field">
+                            <label for="slidingWindowTime">Window Time (minutes)</label>
+                            <input type="number" 
+                                   id="slidingWindowTime" 
+                                   name="slidingWindowTime" 
+                                   value="15" 
+                                   min="1" 
+                                   max="60" 
+                                   step="1"
+                                   class="form-control form-control-sm">
+                            <div class="form-text small">
+                                Time window for health metrics (1-60 min)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
     
@@ -278,6 +320,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 });
                 
+                // Get sliding window time
+                const slidingWindowTime = parseInt(document.getElementById('slidingWindowTime').value) || 15;
+                
                 // Validate total weight
                 const totalWeight = configs.reduce((sum, config) => sum + config.weight, 0);
                 if (totalWeight > 100) {
@@ -286,17 +331,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Send update request
                 const response = await axios.post('/api/gateways/configs', {
-                    gateway_configs: configs
+                    gateway_configs: configs,
+                    sliding_window_minutes: slidingWindowTime
                 });
                 
                 console.log('Gateway configuration updated:', response.data);
-                addGatewayLog(`Gateway configurations updated successfully - Total weight: ${totalWeight}%`);
+                addGatewayLog(`Gateway configurations updated successfully - Total weight: ${totalWeight}%, Sliding window: ${slidingWindowTime} minutes`);
                 
                 // Debug: Log the updated configurations
                 console.log('Updated configurations:', configs);
                 
                 // Show success message
-                alert(`✅ Gateway configurations updated successfully!\n\nTotal weight: ${totalWeight}%\nGateways: ${configs.map(c => c.name).join(', ')}`);
+                alert(`✅ Gateway configurations updated successfully!\n\nTotal weight: ${totalWeight}%\nSliding window: ${slidingWindowTime} minutes\nGateways: ${configs.map(c => c.name).join(', ')}`);
                 
                 // Refresh gateway cards to show updated configurations
                 setTimeout(() => {

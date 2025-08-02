@@ -9,7 +9,7 @@ const GATEWAY_CONFIG = {
 	MAX_TOTAL_WEIGHT: 100,
 	REQUIRED_FIELDS: ['name', 'weight', 'success_threshold', 'min_requests', 'disable_duration_minutes'],
 	HEALTH_CHECK_INTERVAL_MS: 30000,
-	HISTORY_WINDOW_MS: 15 * 60 * 1000, // 15 minutes
+	DEFAULT_HISTORY_WINDOW_MINUTES: 15,
 	SIMULATION_FAILURE_RATE: 0.1,
 	SIMULATION_MIN_DELAY_MS: 500,
 	SIMULATION_MAX_DELAY_MS: 2000,
@@ -37,6 +37,7 @@ class GatewayService {
 		this.gateways = new Map();
 		this.healthStats = new Map();
 		this.healthCheckInterval = null;
+		this.slidingWindowMinutes = GATEWAY_CONFIG.DEFAULT_HISTORY_WINDOW_MINUTES;
 		this.validateAndSetConfig(GATEWAY_CONFIG.DEFAULT_GATEWAYS);
 		this.monitorGatewayHealthStatus('start');
 	}
@@ -129,8 +130,16 @@ class GatewayService {
 					if (!gatewayStats) return;
 
 					const now = Date.now();
+					
+					// Check if gateway should be re-enabled (disabled time has passed)
+					if (!gateway.is_healthy && gateway.disabled_until && now > gateway.disabled_until.getTime()) {
+						this.manageGatewayState(gatewayName, 'reset');
+						logger.info('Gateway re-enabled by sliding window', { gateway: gatewayName });
+						return;
+					}
+
 					const recentHistory = gatewayStats.request_history.filter(
-						(record) => record.timestamp > now - GATEWAY_CONFIG.HISTORY_WINDOW_MS
+						(record) => record.timestamp > now - (this.slidingWindowMinutes * 60 * 1000)
 					);
 					const successRate = recentHistory.filter((record) => record.success).length / (recentHistory.length || 1);
 					const shouldDisable = recentHistory.length >= gateway.min_requests && successRate < gateway.success_threshold;
@@ -152,7 +161,7 @@ class GatewayService {
 
 				const now = Date.now();
 				const recentHistory = gatewayStats.request_history.filter(
-					(record) => record.timestamp > now - GATEWAY_CONFIG.HISTORY_WINDOW_MS
+					(record) => record.timestamp > now - (this.slidingWindowMinutes * 60 * 1000)
 				);
 
 				const totalCallbacks = recentHistory.length;
@@ -167,7 +176,7 @@ class GatewayService {
 
 				gatewayStats.request_history.push({ timestamp: now, success: isSuccessful });
 				gatewayStats.request_history = gatewayStats.request_history.filter(
-					(record) => record.timestamp > now - GATEWAY_CONFIG.HISTORY_WINDOW_MS
+					(record) => record.timestamp > now - (this.slidingWindowMinutes * 60 * 1000)
 				);
 				gatewayStats.last_updated = new Date();
 
@@ -233,7 +242,7 @@ class GatewayService {
 		this.gateways.forEach((gateway, gatewayName) => {
 		const gatewayStats = this.healthStats.get(gatewayName);
 		const requestHistory = gatewayStats?.request_history || [];
-		const recentHistory = requestHistory.filter(record => record.timestamp > now - GATEWAY_CONFIG.HISTORY_WINDOW_MS);
+		const recentHistory = requestHistory.filter(record => record.timestamp > now - (this.slidingWindowMinutes * 60 * 1000));
 		const recentSuccesses = recentHistory.filter(record => record.success).length;
 		const recentFailures = recentHistory.filter(record => !record.success).length;
 		const recentCount = recentHistory.length;
@@ -255,6 +264,18 @@ class GatewayService {
 		});
 
 		return gatewayName ? healthSnapshot[gatewayName] : healthSnapshot;
+	}
+
+	getSlidingWindowMinutes() {
+		return this.slidingWindowMinutes;
+	}
+
+	setSlidingWindowMinutes(minutes) {
+		if (minutes < 1 || minutes > 60) {
+			throw new Error('Sliding window minutes must be between 1 and 60');
+		}
+		this.slidingWindowMinutes = minutes;
+		logger.info('Sliding window time updated', { minutes });
 	}
 }
 

@@ -152,7 +152,12 @@ const validateGatewayConfigs = [
     .notEmpty()
     .withMessage('Disable duration is required')
     .isInt({ min: 1 })
-    .withMessage('Disable duration must be at least 1 minute')
+    .withMessage('Disable duration must be at least 1 minute'),
+  
+  check('sliding_window_minutes')
+    .optional()
+    .isInt({ min: 1, max: 60 })
+    .withMessage('Sliding window minutes must be an integer between 1 and 60')
 ];
 
 // Method validation middleware
